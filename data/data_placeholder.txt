@@ -1,0 +1,1 @@
+Place san_francisco_crime_train.csv in this folder before running the notebook.
