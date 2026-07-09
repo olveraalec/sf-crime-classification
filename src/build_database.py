@@ -30,6 +30,7 @@ def build_database() -> None:
 
     sql_raw = project_root / "sql" / "01_create_raw_table.sql"
     sql_clean = project_root / "sql" / "02_create_clean_view.sql"
+    sql_modeling = project_root / "sql" / "03_create_modeling_view.sql"
 
     if not raw_file.exists():
         raise FileNotFoundError(
@@ -44,10 +45,11 @@ def build_database() -> None:
     with duckdb.connect(str(database_path)) as connection:
         run_sql_file(connection, sql_raw)
         run_sql_file(connection, sql_clean)
+        run_sql_file(connection, sql_modeling)
 
-        row_count = connection.execute(
-            "SELECT COUNT(*) FROM sf_crime_clean"
-        ).fetchone()[0]
+    row_count = connection.execute("SELECT COUNT(*) FROM sf_crime_modeling").fetchone()[
+        0
+    ]
 
     logger.info("Database build complete. Clean row count: %s", row_count)
 
