@@ -1,2 +1,6 @@
 .venv/
 .venv/
+
+# Logs
+logs/*.log
+!logs/.gitkeep
