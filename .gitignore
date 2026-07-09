@@ -1,6 +1,46 @@
+# Virtual environments
 .venv/
-.venv/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code local settings
+.vscode/settings.json
 
 # Logs
 logs/*.log
 !logs/.gitkeep
+
+# Data files
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+data/database/*
+!data/database/.gitkeep
+
+data/tableau/*
+!data/tableau/.gitkeep
+
+# Model artifacts
+models/*
+!models/.gitkeep
+
+# Large/generated figures
+figures/*
+!figures/.gitkeep
+
+# OS files
+.DS_Store
+
+# Environment files
+.env
