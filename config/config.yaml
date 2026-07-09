@@ -1,0 +1,27 @@
+project:
+  name: sf-crime-classification
+  version: "2.0"
+  random_state: 12345
+
+paths:
+  raw_data: data/raw
+  processed_data: data/processed
+  database: data/database/sf_crime.duckdb
+  tableau: data/tableau
+  models: models
+  figures: figures
+  logs: logs
+
+data:
+  raw_file: data/raw/train.csv
+  target_column: Category
+  datetime_column: Dates
+
+validation:
+  test_size: 0.25
+  validation_size: 0.20
+  strategy: time_based
+
+modeling:
+  primary_metric: log_loss
+  baseline_model: logistic_regression
