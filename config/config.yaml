@@ -13,7 +13,7 @@ paths:
   logs: logs
 
 data:
-  raw_file: data/raw/train.csv
+  raw_file: data/raw/san_francisco_crime_train.csv
   target_column: Category
   datetime_column: Dates
 
