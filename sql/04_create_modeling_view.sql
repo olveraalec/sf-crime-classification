@@ -1,28 +1,35 @@
 CREATE OR REPLACE VIEW sf_crime_modeling AS
 SELECT
-    Category AS target,
+    category AS target,
+    incident_timestamp,
 
-    -- Time features
+    -- Calendar features
     incident_year,
     incident_month,
     incident_day,
     incident_hour,
+    incident_minute,
     incident_day_of_week_num,
-    DayOfWeek AS day_of_week,
+    incident_day_of_year,
+    incident_week_of_year,
+    datetime_numeric,
     is_weekend,
 
-    -- Location / district features
-    PdDistrict AS pd_district,
+    -- Spatial features
+    pd_district,
     longitude,
     latitude,
 
     -- Address features
-    Address AS address,
+    address,
+    street_1,
+    street_2,
+    block_number,
     is_intersection
 
-FROM sf_crime_clean
+FROM sf_crime_features
 WHERE
-    target IS NOT NULL
+    category IS NOT NULL
     AND incident_timestamp IS NOT NULL
     AND longitude IS NOT NULL
     AND latitude IS NOT NULL;

@@ -1,31 +1,37 @@
 CREATE OR REPLACE VIEW sf_crime_clean AS
+WITH standardized AS (
+    SELECT
+        TRIM(Category) AS category,
+        Descript AS descript,
+        TRIM(DayOfWeek) AS day_of_week_name,
+        TRIM(PdDistrict) AS pd_district,
+        Resolution AS resolution,
+        TRIM(
+            REGEXP_REPLACE(Address, '\\s*/\\s*', ' / ', 'g')
+        ) AS address,
+        CAST(X AS DOUBLE) AS longitude,
+        CAST(Y AS DOUBLE) AS latitude,
+        TRY_CAST(Dates AS TIMESTAMP) AS incident_timestamp
+    FROM sf_crime_raw
+)
 SELECT
-    Category,
-    Descript,
-    DayOfWeek,
-    PdDistrict,
-    Resolution,
-    Address,
-    X AS longitude,
-    Y AS latitude,
-    Dates,
-    CAST(Dates AS TIMESTAMP) AS incident_timestamp,
-    EXTRACT(year FROM CAST(Dates AS TIMESTAMP)) AS incident_year,
-    EXTRACT(month FROM CAST(Dates AS TIMESTAMP)) AS incident_month,
-    EXTRACT(day FROM CAST(Dates AS TIMESTAMP)) AS incident_day,
-    EXTRACT(hour FROM CAST(Dates AS TIMESTAMP)) AS incident_hour,
-    EXTRACT(dow FROM CAST(Dates AS TIMESTAMP)) AS incident_day_of_week_num,
-    CASE
-        WHEN DayOfWeek IN ('Saturday', 'Sunday') THEN 1
-        ELSE 0
-    END AS is_weekend,
-    CASE
-        WHEN Address LIKE '%/%' THEN 1
-        ELSE 0
-    END AS is_intersection
-FROM sf_crime_raw
+    category,
+    descript,
+    day_of_week_name,
+    pd_district,
+    resolution,
+    address,
+    longitude,
+    latitude,
+    incident_timestamp
+FROM standardized
 WHERE
-    Category IS NOT NULL
-    AND Dates IS NOT NULL
-    AND X IS NOT NULL
-    AND Y IS NOT NULL;
+    category IS NOT NULL
+    AND category <> ''
+    AND pd_district IS NOT NULL
+    AND incident_timestamp IS NOT NULL
+    AND longitude IS NOT NULL
+    AND latitude IS NOT NULL
+
+    -- Reproduce the original notebook's invalid-coordinate filter.
+    AND longitude < -122;

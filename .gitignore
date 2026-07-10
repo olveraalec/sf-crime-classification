@@ -35,9 +35,8 @@ data/tableau/*
 models/*
 !models/.gitkeep
 
-# Large/generated figures
-figures/*
-!figures/.gitkeep
+# Temporary figure files
+figures/temp/
 
 # OS files
 .DS_Store
