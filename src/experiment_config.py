@@ -184,3 +184,20 @@ def tree_baseline_config(
         n_geo_clusters=40,
         sparse_output=False,
     )
+
+
+def dummy_baseline_config() -> ExperimentConfig:
+    """Return a class-prior DummyClassifier baseline."""
+    return ExperimentConfig(
+        experiment_name="dummy_class_prior",
+        model_name="dummy",
+        validation_mode="temporal_cv",
+        include_time_trend=False,
+        add_cyclical=False,
+        add_interactions=False,
+        add_address_engineering=False,
+        categorical_encoding="onehot",
+        numeric_strategy="passthrough",
+        geo_mode="none",
+        sparse_output=True,
+    )
