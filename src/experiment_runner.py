@@ -169,3 +169,36 @@ def summarize_experiment_results(
     ]
 
     return summary
+
+
+def run_and_save_temporal_experiment(
+    config: ExperimentConfig,
+    data: pd.DataFrame | None = None,
+    validation_years: tuple[int, ...] = (2011, 2012, 2013),
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Run temporal CV and persist fold, summary, and metadata outputs."""
+    from src.experiment_tracking import (
+        rebuild_master_results,
+        save_experiment_results,
+    )
+
+    fold_results = run_temporal_cv(
+        config=config,
+        data=data,
+        validation_years=validation_years,
+    )
+
+    summary_results = summarize_experiment_results(fold_results)
+
+    save_experiment_results(
+        config=config,
+        fold_results=fold_results,
+        summary_results=summary_results,
+        additional_metadata={
+            "validation_years": list(validation_years),
+        },
+    )
+
+    rebuild_master_results()
+
+    return fold_results, summary_results

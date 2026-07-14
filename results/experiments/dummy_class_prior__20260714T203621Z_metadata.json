@@ -1,0 +1,26 @@
+{
+  "run_id": "dummy_class_prior__20260714T203621Z",
+  "created_at_utc": "2026-07-14T20:36:21.659155+00:00",
+  "configuration": {
+    "experiment_name": "dummy_class_prior",
+    "model_name": "dummy",
+    "validation_mode": "temporal_cv",
+    "include_time_trend": false,
+    "add_cyclical": false,
+    "drop_original_cyclical": false,
+    "add_interactions": false,
+    "add_address_engineering": false,
+    "categorical_encoding": "onehot",
+    "numeric_strategy": "passthrough",
+    "geo_mode": "none",
+    "n_geo_clusters": 40,
+    "numeric_bins": 10,
+    "sparse_output": true,
+    "random_state": 12345
+  },
+  "fold_result_file": "results/experiments/dummy_class_prior__20260714T203621Z_folds.csv",
+  "summary_result_file": "results/summaries/dummy_class_prior__20260714T203621Z_summary.csv",
+  "validation_years": [
+    2011
+  ]
+}
