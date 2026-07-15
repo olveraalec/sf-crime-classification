@@ -166,3 +166,60 @@ def logistic_encoding_ablation_suite() -> list[ExperimentConfig]:
             **common,
         ),
     ]
+
+
+def logistic_geo_followup_suite() -> list[ExperimentConfig]:
+    """
+    Compare new geographic representations against the current
+    raw-coordinate plus 40-cluster winner.
+
+    The existing raw and raw-cluster-40 results are already stored, so this
+    suite avoids rerunning those identical experiments.
+    """
+    common = {
+        "model_name": "logistic",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "onehot",
+        "numeric_strategy": "standard",
+        "sparse_output": True,
+        "logistic_c": 0.1,
+        "logistic_max_iter": 500,
+    }
+
+    return [
+        ExperimentConfig(
+            experiment_name="logistic_geo_raw_cluster20",
+            geo_mode="raw_cluster",
+            n_geo_clusters=20,
+            **common,
+        ),
+        ExperimentConfig(
+            experiment_name="logistic_geo_raw_cluster80",
+            geo_mode="raw_cluster",
+            n_geo_clusters=80,
+            **common,
+        ),
+        ExperimentConfig(
+            experiment_name="logistic_geo_cluster40_only",
+            geo_mode="cluster",
+            n_geo_clusters=40,
+            **common,
+        ),
+        ExperimentConfig(
+            experiment_name="logistic_geo_raw_distances20",
+            geo_mode="raw_distances",
+            n_geo_clusters=20,
+            **common,
+        ),
+        ExperimentConfig(
+            experiment_name="logistic_geo_raw_distances40",
+            geo_mode="raw_distances",
+            n_geo_clusters=40,
+            **common,
+        ),
+    ]
