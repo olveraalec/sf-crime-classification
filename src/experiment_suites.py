@@ -223,3 +223,41 @@ def logistic_geo_followup_suite() -> list[ExperimentConfig]:
             **common,
         ),
     ]
+
+
+def logistic_encoding_followup_suite() -> list[ExperimentConfig]:
+    """
+    Compare compact categorical encodings against the stored one-hot winner.
+
+    The one-hot raw-distances-40 result already exists, so this suite runs
+    only frequency and ordinal alternatives.
+    """
+    common = {
+        "model_name": "logistic",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "numeric_strategy": "standard",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "logistic_c": 0.1,
+        "logistic_max_iter": 500,
+    }
+
+    return [
+        ExperimentConfig(
+            experiment_name="logistic_encoding_frequency_geo_dist40",
+            categorical_encoding="frequency",
+            sparse_output=False,
+            **common,
+        ),
+        ExperimentConfig(
+            experiment_name="logistic_encoding_ordinal_geo_dist40",
+            categorical_encoding="ordinal",
+            sparse_output=False,
+            **common,
+        ),
+    ]
