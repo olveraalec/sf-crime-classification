@@ -20,9 +20,10 @@ def build_model(config: ExperimentConfig):
 
     if config.model_name == "logistic":
         return LogisticRegression(
-            C=0.1,
-            max_iter=500,
-            solver="saga",
+            C=config.logistic_c,
+            max_iter=config.logistic_max_iter,
+            tol=config.logistic_tol,
+            solver=config.logistic_solver,
             random_state=config.random_state,
         )
 

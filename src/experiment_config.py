@@ -67,6 +67,12 @@ class ExperimentConfig:
     numeric_bins: int = 10
     sparse_output: bool = True
 
+    # Logistic Regression parameters
+    logistic_c: float = 0.1
+    logistic_max_iter: int = 500
+    logistic_tol: float = 1e-4
+    logistic_solver: str = "saga"
+
     # General reproducibility
     random_state: int = 12345
 
@@ -109,6 +115,14 @@ class ExperimentConfig:
                 "HistGradientBoosting should use ordinal or frequency encoding, "
                 "not sparse one-hot encoding."
             )
+        if self.logistic_c <= 0:
+            raise ValueError("logistic_c must be positive.")
+
+        if self.logistic_max_iter < 1:
+            raise ValueError("logistic_max_iter must be at least 1.")
+
+        if self.logistic_tol <= 0:
+            raise ValueError("logistic_tol must be positive.")
 
 
 def logistic_baseline_config() -> ExperimentConfig:

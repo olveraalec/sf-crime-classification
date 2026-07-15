@@ -202,3 +202,58 @@ def run_and_save_temporal_experiment(
     rebuild_master_results()
 
     return fold_results, summary_results
+
+
+def run_experiment_suite(
+    configs: list[ExperimentConfig],
+    validation_years: tuple[int, ...] = (2011,),
+    save_results: bool = True,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Run multiple configurations and combine their results.
+
+    One validation year is recommended for initial screening. Strong candidates
+    can then be evaluated across all temporal folds.
+    """
+    fold_frames: list[pd.DataFrame] = []
+    summary_frames: list[pd.DataFrame] = []
+
+    data = load_modeling_data()
+
+    for position, config in enumerate(configs, start=1):
+        logger.info(
+            "Running suite experiment %s of %s: %s",
+            position,
+            len(configs),
+            config.experiment_name,
+        )
+
+        if save_results:
+            fold_results, summary_results = run_and_save_temporal_experiment(
+                config=config,
+                data=data,
+                validation_years=validation_years,
+            )
+        else:
+            fold_results = run_temporal_cv(
+                config=config,
+                data=data,
+                validation_years=validation_years,
+            )
+
+            summary_results = summarize_experiment_results(fold_results)
+
+        fold_frames.append(fold_results)
+        summary_frames.append(summary_results)
+
+    combined_folds = pd.concat(
+        fold_frames,
+        ignore_index=True,
+    )
+
+    combined_summaries = pd.concat(
+        summary_frames,
+        ignore_index=True,
+    )
+
+    return combined_folds, combined_summaries
