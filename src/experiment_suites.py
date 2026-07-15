@@ -299,3 +299,40 @@ def logistic_convergence_suite() -> list[ExperimentConfig]:
             **common,
         ),
     ]
+
+
+def logistic_regularization_suite() -> list[ExperimentConfig]:
+    """
+    Tune inverse regularization strength for the current winning
+    Logistic Regression feature representation.
+    """
+    common = {
+        "model_name": "logistic",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "onehot",
+        "numeric_strategy": "standard",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": True,
+        "logistic_max_iter": 750,
+        "logistic_tol": 1e-4,
+        "logistic_solver": "saga",
+        "logistic_l1_ratio": 0.0,
+        "logistic_class_weight": None,
+    }
+
+    c_values = [0.01, 0.03, 0.1, 0.3, 1.0]
+
+    return [
+        ExperimentConfig(
+            experiment_name=f"logistic_c_{str(c_value).replace('.', '_')}",
+            logistic_c=c_value,
+            **common,
+        )
+        for c_value in c_values
+    ]
