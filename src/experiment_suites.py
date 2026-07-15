@@ -261,3 +261,41 @@ def logistic_encoding_followup_suite() -> list[ExperimentConfig]:
             **common,
         ),
     ]
+
+
+def logistic_convergence_suite() -> list[ExperimentConfig]:
+    """
+    Test whether the current winning Logistic configuration improves
+    with a larger optimization budget.
+    """
+    common = {
+        "model_name": "logistic",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "onehot",
+        "numeric_strategy": "standard",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": True,
+        "logistic_c": 0.1,
+        "logistic_tol": 1e-4,
+        "logistic_solver": "saga",
+        "logistic_l1_ratio": 0.0,
+    }
+
+    return [
+        ExperimentConfig(
+            experiment_name="logistic_convergence_750",
+            logistic_max_iter=750,
+            **common,
+        ),
+        ExperimentConfig(
+            experiment_name="logistic_convergence_1000",
+            logistic_max_iter=1000,
+            **common,
+        ),
+    ]

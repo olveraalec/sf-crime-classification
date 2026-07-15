@@ -97,6 +97,19 @@ def run_temporal_cv(
 
         pipeline.fit(X_train, y_train)
 
+        fitted_model = pipeline.named_steps["model"]
+
+        model_iterations = getattr(
+            fitted_model,
+            "n_iter_",
+            None,
+        )
+
+        if model_iterations is None:
+            max_model_iterations = None
+        else:
+            max_model_iterations = int(np.max(model_iterations))
+
         training_seconds = time.perf_counter() - start_time
 
         probabilities = pipeline.predict_proba(X_validation)
@@ -117,6 +130,7 @@ def run_temporal_cv(
 
         row = {
             **config.to_dict(),
+            "model_iterations": max_model_iterations,
             "fold": fold.fold,
             "train_start": fold.train_start,
             "train_end": fold.train_end,
@@ -153,6 +167,7 @@ def summarize_experiment_results(
         "top_3_accuracy",
         "macro_f1",
         "training_seconds",
+        "model_iterations",
     ]
 
     summary = fold_results.groupby(

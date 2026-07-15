@@ -21,9 +21,11 @@ def build_model(config: ExperimentConfig):
     if config.model_name == "logistic":
         return LogisticRegression(
             C=config.logistic_c,
+            l1_ratio=config.logistic_l1_ratio,
             max_iter=config.logistic_max_iter,
             tol=config.logistic_tol,
             solver=config.logistic_solver,
+            class_weight=config.logistic_class_weight,
             random_state=config.random_state,
         )
 

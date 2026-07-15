@@ -67,6 +67,8 @@ class ExperimentConfig:
     numeric_bins: int = 10
     sparse_output: bool = True
 
+    logistic_l1_ratio: float = 0.0
+    logistic_class_weight: str | None = None
     # Logistic Regression parameters
     logistic_c: float = 0.1
     logistic_max_iter: int = 500
@@ -123,6 +125,15 @@ class ExperimentConfig:
 
         if self.logistic_tol <= 0:
             raise ValueError("logistic_tol must be positive.")
+        if not 0.0 <= self.logistic_l1_ratio <= 1.0:
+            raise ValueError("logistic_l1_ratio must be between 0 and 1.")
+        if self.logistic_class_weight not in {None, "balanced"}:
+            raise ValueError("logistic_class_weight must be None or 'balanced'.")
+
+        if self.logistic_l1_ratio > 0 and self.logistic_solver != "saga":
+            raise ValueError(
+                "L1 and Elastic Net Logistic Regression require the saga solver."
+            )
 
 
 def logistic_baseline_config() -> ExperimentConfig:
