@@ -1,0 +1,32 @@
+{
+  "run_id": "logistic_c_0_3__20260715T212239Z",
+  "created_at_utc": "2026-07-15T21:22:39.648761+00:00",
+  "configuration": {
+    "experiment_name": "logistic_c_0_3",
+    "model_name": "logistic",
+    "validation_mode": "temporal_cv",
+    "include_time_trend": true,
+    "add_cyclical": true,
+    "drop_original_cyclical": false,
+    "add_interactions": true,
+    "add_address_engineering": true,
+    "categorical_encoding": "onehot",
+    "numeric_strategy": "standard",
+    "geo_mode": "raw_distances",
+    "n_geo_clusters": 40,
+    "numeric_bins": 10,
+    "sparse_output": true,
+    "logistic_l1_ratio": 0.0,
+    "logistic_class_weight": null,
+    "logistic_c": 0.3,
+    "logistic_max_iter": 750,
+    "logistic_tol": 0.0001,
+    "logistic_solver": "saga",
+    "random_state": 12345
+  },
+  "fold_result_file": "results/experiments/logistic_c_0_3__20260715T212239Z_folds.csv",
+  "summary_result_file": "results/summaries/logistic_c_0_3__20260715T212239Z_summary.csv",
+  "validation_years": [
+    2011
+  ]
+}
