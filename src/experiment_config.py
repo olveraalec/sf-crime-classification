@@ -226,3 +226,29 @@ def dummy_baseline_config() -> ExperimentConfig:
         geo_mode="none",
         sparse_output=True,
     )
+
+
+def logistic_finalist_config() -> ExperimentConfig:
+    """Return the optimized Logistic Regression finalist configuration."""
+    return ExperimentConfig(
+        experiment_name="logistic_finalist_temporal_cv",
+        model_name="logistic",
+        validation_mode="temporal_cv",
+        include_time_trend=True,
+        add_cyclical=True,
+        drop_original_cyclical=False,
+        add_interactions=True,
+        add_address_engineering=True,
+        categorical_encoding="onehot",
+        numeric_strategy="standard",
+        geo_mode="raw_distances",
+        n_geo_clusters=40,
+        sparse_output=True,
+        logistic_c=0.1,
+        logistic_max_iter=750,
+        logistic_tol=1e-4,
+        logistic_solver="saga",
+        logistic_l1_ratio=0.0,
+        logistic_class_weight=None,
+        random_state=12345,
+    )
