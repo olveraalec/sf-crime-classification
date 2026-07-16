@@ -336,3 +336,42 @@ def logistic_regularization_suite() -> list[ExperimentConfig]:
         )
         for c_value in c_values
     ]
+
+
+def logistic_elastic_net_suite() -> list[ExperimentConfig]:
+    """
+    Test whether a small L1 component improves the current Logistic winner.
+
+    l1_ratio=0.0 is the existing pure-L2 benchmark, so this suite runs only
+    new Elastic Net alternatives.
+    """
+    common = {
+        "model_name": "logistic",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "onehot",
+        "numeric_strategy": "standard",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": True,
+        "logistic_c": 0.1,
+        "logistic_max_iter": 750,
+        "logistic_tol": 1e-4,
+        "logistic_solver": "saga",
+        "logistic_class_weight": None,
+    }
+
+    l1_ratios = [0.05, 0.10, 0.25]
+
+    return [
+        ExperimentConfig(
+            experiment_name=(f"logistic_elastic_net_{str(l1_ratio).replace('.', '_')}"),
+            logistic_l1_ratio=l1_ratio,
+            **common,
+        )
+        for l1_ratio in l1_ratios
+    ]
