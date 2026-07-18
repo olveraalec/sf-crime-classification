@@ -8,6 +8,7 @@ ModelName = Literal[
     "dummy",
     "logistic",
     "naive_bayes",
+    "random_forest",
     "xgboost",
     "extra_trees",
     "hist_gradient_boosting",
@@ -67,13 +68,24 @@ class ExperimentConfig:
     numeric_bins: int = 10
     sparse_output: bool = True
 
+    # Logistic Regression parameters
     logistic_l1_ratio: float = 0.0
     logistic_class_weight: str | None = None
-    # Logistic Regression parameters
     logistic_c: float = 0.1
     logistic_max_iter: int = 500
     logistic_tol: float = 1e-4
     logistic_solver: str = "saga"
+
+    # Random Forest parameters
+    forest_n_estimators: int = 200
+    forest_criterion: str = "log_loss"
+    forest_max_depth: int | None = 24
+    forest_min_samples_split: int = 2
+    forest_min_samples_leaf: int = 5
+    forest_max_features: str | float | None = "sqrt"
+    forest_bootstrap: bool = True
+    forest_class_weight: str | None = None
+    forest_n_jobs: int = -1
 
     # General reproducibility
     random_state: int = 12345
@@ -133,6 +145,35 @@ class ExperimentConfig:
         if self.logistic_l1_ratio > 0 and self.logistic_solver != "saga":
             raise ValueError(
                 "L1 and Elastic Net Logistic Regression require the saga solver."
+            )
+        if self.forest_n_estimators < 1:
+            raise ValueError("forest_n_estimators must be at least 1.")
+
+        if self.forest_max_depth is not None and self.forest_max_depth < 1:
+            raise ValueError("forest_max_depth must be None or at least 1.")
+
+        if self.forest_min_samples_split < 2:
+            raise ValueError("forest_min_samples_split must be at least 2.")
+
+        if self.forest_min_samples_leaf < 1:
+            raise ValueError("forest_min_samples_leaf must be at least 1.")
+
+        if self.forest_criterion not in {
+            "gini",
+            "entropy",
+            "log_loss",
+        }:
+            raise ValueError(
+                "forest_criterion must be 'gini', 'entropy', or 'log_loss'."
+            )
+
+        if self.forest_class_weight not in {
+            None,
+            "balanced",
+            "balanced_subsample",
+        }:
+            raise ValueError(
+                "forest_class_weight must be None, 'balanced', or 'balanced_subsample'."
             )
 
 
@@ -250,5 +291,34 @@ def logistic_finalist_config() -> ExperimentConfig:
         logistic_solver="saga",
         logistic_l1_ratio=0.0,
         logistic_class_weight=None,
+        random_state=12345,
+    )
+
+
+def random_forest_baseline_config() -> ExperimentConfig:
+    """Return the initial Random Forest nonlinear benchmark."""
+    return ExperimentConfig(
+        experiment_name="random_forest_baseline",
+        model_name="random_forest",
+        validation_mode="temporal_cv",
+        include_time_trend=True,
+        add_cyclical=True,
+        drop_original_cyclical=False,
+        add_interactions=True,
+        add_address_engineering=True,
+        categorical_encoding="ordinal",
+        numeric_strategy="passthrough",
+        geo_mode="raw_distances",
+        n_geo_clusters=40,
+        sparse_output=False,
+        forest_n_estimators=200,
+        forest_criterion="log_loss",
+        forest_max_depth=24,
+        forest_min_samples_split=2,
+        forest_min_samples_leaf=5,
+        forest_max_features="sqrt",
+        forest_bootstrap=True,
+        forest_class_weight=None,
+        forest_n_jobs=-1,
         random_state=12345,
     )

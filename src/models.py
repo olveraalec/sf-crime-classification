@@ -4,6 +4,11 @@ from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import ExtraTreesClassifier, HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import CategoricalNB
+from sklearn.ensemble import (
+    ExtraTreesClassifier,
+    HistGradientBoostingClassifier,
+    RandomForestClassifier,
+)
 
 from src.experiment_config import ExperimentConfig
 
@@ -31,6 +36,21 @@ def build_model(config: ExperimentConfig):
 
     if config.model_name == "naive_bayes":
         return CategoricalNB(alpha=0.5)
+
+    if config.model_name == "random_forest":
+        return RandomForestClassifier(
+            n_estimators=config.forest_n_estimators,
+            criterion=config.forest_criterion,
+            max_depth=config.forest_max_depth,
+            min_samples_split=config.forest_min_samples_split,
+            min_samples_leaf=config.forest_min_samples_leaf,
+            max_features=config.forest_max_features,
+            bootstrap=config.forest_bootstrap,
+            class_weight=config.forest_class_weight,
+            random_state=config.random_state,
+            n_jobs=config.forest_n_jobs,
+            verbose=1,
+        )
 
     if config.model_name == "extra_trees":
         return ExtraTreesClassifier(

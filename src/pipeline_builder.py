@@ -51,6 +51,7 @@ def build_transformer_from_config(
         )
 
     if config.model_name in {
+        "random_forest",
         "xgboost",
         "extra_trees",
         "hist_gradient_boosting",
