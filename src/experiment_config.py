@@ -87,6 +87,19 @@ class ExperimentConfig:
     forest_class_weight: str | None = None
     forest_n_jobs: int = -1
 
+    # XGBoost parameters
+    xgb_n_estimators: int = 300
+    xgb_max_depth: int = 6
+    xgb_learning_rate: float = 0.1
+
+    xgb_subsample: float = 0.8
+    xgb_colsample_bytree: float = 0.8
+
+    xgb_min_child_weight: int = 1
+
+    xgb_reg_alpha: float = 0.0
+    xgb_reg_lambda: float = 1.0
+
     # General reproducibility
     random_state: int = 12345
 
@@ -320,5 +333,33 @@ def random_forest_baseline_config() -> ExperimentConfig:
         forest_bootstrap=True,
         forest_class_weight=None,
         forest_n_jobs=-1,
+        random_state=12345,
+    )
+
+
+def xgboost_baseline_config() -> ExperimentConfig:
+    """Return the initial XGBoost multiclass benchmark."""
+    return ExperimentConfig(
+        experiment_name="xgboost_baseline",
+        model_name="xgboost",
+        validation_mode="temporal_cv",
+        include_time_trend=True,
+        add_cyclical=True,
+        drop_original_cyclical=False,
+        add_interactions=True,
+        add_address_engineering=True,
+        categorical_encoding="ordinal",
+        numeric_strategy="passthrough",
+        geo_mode="raw_distances",
+        n_geo_clusters=40,
+        sparse_output=False,
+        xgb_n_estimators=200,
+        xgb_max_depth=6,
+        xgb_learning_rate=0.10,
+        xgb_subsample=1.0,
+        xgb_colsample_bytree=1.0,
+        xgb_min_child_weight=1,
+        xgb_reg_alpha=0.0,
+        xgb_reg_lambda=1.0,
         random_state=12345,
     )

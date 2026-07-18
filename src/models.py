@@ -9,6 +9,7 @@ from sklearn.ensemble import (
     HistGradientBoostingClassifier,
     RandomForestClassifier,
 )
+from xgboost import XGBClassifier
 
 from src.experiment_config import ExperimentConfig
 
@@ -72,23 +73,38 @@ def build_model(config: ExperimentConfig):
         )
 
     if config.model_name == "xgboost":
-        try:
-            from xgboost import XGBClassifier
-        except ImportError as error:
-            raise ImportError(
-                "XGBoost is not installed. Run `uv add xgboost` first."
-            ) from error
+        from xgboost import XGBClassifier
 
         return XGBClassifier(
             objective="multi:softprob",
             eval_metric="mlogloss",
-            n_estimators=300,
-            learning_rate=0.08,
-            max_depth=8,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            min_child_weight=1,
-            reg_lambda=1.0,
+            n_estimators=config.xgb_n_estimators,
+            max_depth=config.xgb_max_depth,
+            learning_rate=config.xgb_learning_rate,
+            subsample=config.xgb_subsample,
+            colsample_bytree=config.xgb_colsample_bytree,
+            min_child_weight=config.xgb_min_child_weight,
+            reg_alpha=config.xgb_reg_alpha,
+            reg_lambda=config.xgb_reg_lambda,
+            tree_method="hist",
+            random_state=config.random_state,
+            n_jobs=-1,
+            verbosity=1,
+        )
+
+    elif config.model_name == "xgboost":
+        return XGBClassifier(
+            objective="multi:softprob",
+            eval_metric="mlogloss",
+            n_estimators=config.xgb_n_estimators,
+            max_depth=config.xgb_max_depth,
+            learning_rate=config.xgb_learning_rate,
+            subsample=config.xgb_subsample,
+            colsample_bytree=config.xgb_colsample_bytree,
+            min_child_weight=config.xgb_min_child_weight,
+            reg_alpha=config.xgb_reg_alpha,
+            reg_lambda=config.xgb_reg_lambda,
+            tree_method="hist",
             random_state=config.random_state,
             n_jobs=-1,
         )

@@ -5,6 +5,7 @@ import time
 import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import LabelEncoder
 
 from src.data_loader import load_modeling_data
 from src.evaluation import (
@@ -65,6 +66,9 @@ def run_temporal_cv(
 
     all_classes = np.sort(development_data["target"].unique())
 
+    target_encoder = LabelEncoder()
+    target_encoder.fit(all_classes)
+
     rows: list[dict[str, object]] = []
 
     for fold in folds:
@@ -88,8 +92,17 @@ def run_temporal_cv(
             config,
         )
 
-        y_train = train_data["target"].copy()
-        y_validation = validation_data["target"].copy()
+        y_train_original = train_data["target"].copy()
+        y_validation_original = validation_data["target"].copy()
+
+        if config.model_name == "xgboost":
+            y_train = target_encoder.transform(y_train_original)
+            y_validation = target_encoder.transform(y_validation_original)
+            evaluation_classes = np.arange(len(target_encoder.classes_))
+        else:
+            y_train = y_train_original
+            y_validation = y_validation_original
+            evaluation_classes = all_classes
 
         pipeline = build_full_pipeline(config)
 
@@ -119,13 +132,13 @@ def run_temporal_cv(
         probabilities = align_probability_columns(
             probabilities=probabilities,
             model_classes=model_classes,
-            all_classes=all_classes,
+            all_classes=evaluation_classes,
         )
 
         metrics = evaluate_multiclass_predictions(
             y_true=y_validation,
             probabilities=probabilities,
-            classes=all_classes,
+            classes=evaluation_classes,
         )
 
         row = {
