@@ -375,3 +375,51 @@ def logistic_elastic_net_suite() -> list[ExperimentConfig]:
         )
         for l1_ratio in l1_ratios
     ]
+
+
+def random_forest_leaf_suite() -> list[ExperimentConfig]:
+    """
+    Test tree complexity and leaf smoothing for Random Forest probability quality.
+    """
+    common = {
+        "model_name": "random_forest",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "ordinal",
+        "numeric_strategy": "passthrough",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": False,
+        "forest_n_estimators": 300,
+        "forest_criterion": "log_loss",
+        "forest_min_samples_split": 2,
+        "forest_max_features": "sqrt",
+        "forest_bootstrap": True,
+        "forest_class_weight": None,
+        "forest_n_jobs": -1,
+        "random_state": 12345,
+    }
+
+    settings = [
+        (16, 5),
+        (16, 20),
+        (24, 10),
+        (24, 25),
+        (32, 10),
+        (32, 25),
+        (None, 25),
+    ]
+
+    return [
+        ExperimentConfig(
+            experiment_name=(f"random_forest_depth_{depth}_leaf_{leaf}"),
+            forest_max_depth=depth,
+            forest_min_samples_leaf=leaf,
+            **common,
+        )
+        for depth, leaf in settings
+    ]
