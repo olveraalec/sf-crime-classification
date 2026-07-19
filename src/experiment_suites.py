@@ -593,3 +593,57 @@ def xgboost_sampling_suite() -> list[ExperimentConfig]:
         )
         for subsample, colsample in settings
     ]
+
+
+def xgboost_regularization_suite() -> list[ExperimentConfig]:
+    """
+    Tune XGBoost split and leaf-weight regularization using the fast
+    200-tree screening configuration.
+    """
+    common = {
+        "model_name": "xgboost",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "ordinal",
+        "numeric_strategy": "passthrough",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": False,
+        "xgb_n_estimators": 200,
+        "xgb_learning_rate": 0.10,
+        "xgb_max_depth": 8,
+        "xgb_min_child_weight": 5,
+        "xgb_subsample": 0.80,
+        "xgb_colsample_bytree": 0.70,
+        "random_state": 12345,
+    }
+
+    settings = [
+        # gamma, alpha, lambda
+        (0.0, 0.0, 0.5),
+        (0.0, 0.0, 2.0),
+        (0.0, 0.0, 5.0),
+        (0.0, 0.1, 1.0),
+        (0.0, 0.5, 1.0),
+        (0.1, 0.0, 1.0),
+        (0.5, 0.0, 1.0),
+    ]
+
+    return [
+        ExperimentConfig(
+            experiment_name=(
+                f"xgboost_gamma_{str(gamma).replace('.', '_')}"
+                f"_alpha_{str(alpha).replace('.', '_')}"
+                f"_lambda_{str(reg_lambda).replace('.', '_')}"
+            ),
+            xgb_gamma=gamma,
+            xgb_reg_alpha=alpha,
+            xgb_reg_lambda=reg_lambda,
+            **common,
+        )
+        for gamma, alpha, reg_lambda in settings
+    ]

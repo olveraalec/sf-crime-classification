@@ -90,6 +90,7 @@ def build_model(config: ExperimentConfig):
             random_state=config.random_state,
             n_jobs=-1,
             verbosity=1,
+            gamma=config.xgb_gamma,
         )
 
     elif config.model_name == "xgboost":
@@ -107,6 +108,8 @@ def build_model(config: ExperimentConfig):
             tree_method="hist",
             random_state=config.random_state,
             n_jobs=-1,
+            verbosity=1,
+            gamma=config.xgb_gamma,
         )
 
     raise ValueError(f"No model builder exists for model '{config.model_name}'.")

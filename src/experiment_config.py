@@ -100,6 +100,8 @@ class ExperimentConfig:
     xgb_reg_alpha: float = 0.0
     xgb_reg_lambda: float = 1.0
 
+    xgb_gamma: float = 0.0
+
     # General reproducibility
     random_state: int = 12345
 
@@ -188,6 +190,14 @@ class ExperimentConfig:
             raise ValueError(
                 "forest_class_weight must be None, 'balanced', or 'balanced_subsample'."
             )
+        if self.xgb_gamma < 0:
+            raise ValueError("xgb_gamma must be non-negative.")
+
+        if self.xgb_reg_alpha < 0:
+            raise ValueError("xgb_reg_alpha must be non-negative.")
+
+        if self.xgb_reg_lambda < 0:
+            raise ValueError("xgb_reg_lambda must be non-negative.")
 
 
 def logistic_baseline_config() -> ExperimentConfig:
