@@ -423,3 +423,75 @@ def random_forest_leaf_suite() -> list[ExperimentConfig]:
         )
         for depth, leaf in settings
     ]
+
+
+def xgboost_baseline_suite():
+
+    return [
+        ExperimentConfig(
+            experiment_name="xgboost_baseline",
+            model_name="xgboost",
+            validation_mode="temporal_cv",
+            include_time_trend=True,
+            add_cyclical=True,
+            add_interactions=True,
+            add_address_engineering=True,
+            categorical_encoding="ordinal",
+            geo_mode="raw_distances",
+            n_geo_clusters=40,
+            xgb_n_estimators=300,
+            xgb_max_depth=6,
+            xgb_learning_rate=0.1,
+            xgb_subsample=0.8,
+            xgb_colsample_bytree=0.8,
+        )
+    ]
+
+
+def xgboost_complexity_suite() -> list[ExperimentConfig]:
+    """
+    Tune XGBoost tree depth and minimum child weight.
+
+    Depth controls interaction complexity. Minimum child weight prevents
+    splits based on insufficient training evidence.
+    """
+    common = {
+        "model_name": "xgboost",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "ordinal",
+        "numeric_strategy": "passthrough",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": False,
+        "xgb_n_estimators": 200,
+        "xgb_learning_rate": 0.10,
+        "xgb_subsample": 1.0,
+        "xgb_colsample_bytree": 1.0,
+        "xgb_reg_alpha": 0.0,
+        "xgb_reg_lambda": 1.0,
+        "random_state": 12345,
+    }
+
+    settings = [
+        (4, 1),
+        (4, 5),
+        (6, 1),
+        (6, 5),
+        (8, 1),
+        (8, 5),
+    ]
+
+    return [
+        ExperimentConfig(
+            experiment_name=(f"xgboost_depth_{depth}_child_{child_weight}"),
+            xgb_max_depth=depth,
+            xgb_min_child_weight=child_weight,
+            **common,
+        )
+        for depth, child_weight in settings
+    ]
