@@ -495,3 +495,51 @@ def xgboost_complexity_suite() -> list[ExperimentConfig]:
         )
         for depth, child_weight in settings
     ]
+
+
+def xgboost_learning_rate_suite() -> list[ExperimentConfig]:
+    """
+    Compare learning-rate and tree-count combinations while preserving
+    the current winning tree complexity.
+    """
+    common = {
+        "model_name": "xgboost",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "ordinal",
+        "numeric_strategy": "passthrough",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": False,
+        "xgb_max_depth": 8,
+        "xgb_min_child_weight": 5,
+        "xgb_subsample": 1.0,
+        "xgb_colsample_bytree": 1.0,
+        "xgb_reg_alpha": 0.0,
+        "xgb_reg_lambda": 1.0,
+        "random_state": 12345,
+    }
+
+    settings = [
+        (0.20, 100),
+        (0.10, 200),
+        (0.05, 400),
+        (0.03, 600),
+    ]
+
+    return [
+        ExperimentConfig(
+            experiment_name=(
+                f"xgboost_lr_{str(learning_rate).replace('.', '_')}"
+                f"_trees_{n_estimators}"
+            ),
+            xgb_learning_rate=learning_rate,
+            xgb_n_estimators=n_estimators,
+            **common,
+        )
+        for learning_rate, n_estimators in settings
+    ]
