@@ -373,3 +373,32 @@ def xgboost_baseline_config() -> ExperimentConfig:
         xgb_reg_lambda=1.0,
         random_state=12345,
     )
+
+
+def xgboost_finalist_config() -> ExperimentConfig:
+    """Return the optimized XGBoost finalist configuration."""
+    return ExperimentConfig(
+        experiment_name="xgboost_finalist",
+        model_name="xgboost",
+        validation_mode="temporal_cv",
+        include_time_trend=True,
+        add_cyclical=True,
+        drop_original_cyclical=False,
+        add_interactions=True,
+        add_address_engineering=True,
+        categorical_encoding="ordinal",
+        numeric_strategy="passthrough",
+        geo_mode="raw_distances",
+        n_geo_clusters=40,
+        sparse_output=False,
+        xgb_n_estimators=600,
+        xgb_learning_rate=0.03,
+        xgb_max_depth=8,
+        xgb_min_child_weight=5,
+        xgb_subsample=0.80,
+        xgb_colsample_bytree=0.70,
+        xgb_gamma=0.0,
+        xgb_reg_alpha=0.0,
+        xgb_reg_lambda=12.0,
+        random_state=12345,
+    )
