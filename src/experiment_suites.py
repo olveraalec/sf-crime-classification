@@ -647,3 +647,41 @@ def xgboost_regularization_suite() -> list[ExperimentConfig]:
         )
         for gamma, alpha, reg_lambda in settings
     ]
+
+
+def xgboost_lambda_refinement_suite() -> list[ExperimentConfig]:
+    """Refine L2 regularization around the current lambda=5 winner."""
+    common = {
+        "model_name": "xgboost",
+        "validation_mode": "temporal_cv",
+        "include_time_trend": True,
+        "add_cyclical": True,
+        "drop_original_cyclical": False,
+        "add_interactions": True,
+        "add_address_engineering": True,
+        "categorical_encoding": "ordinal",
+        "numeric_strategy": "passthrough",
+        "geo_mode": "raw_distances",
+        "n_geo_clusters": 40,
+        "sparse_output": False,
+        "xgb_n_estimators": 200,
+        "xgb_learning_rate": 0.10,
+        "xgb_max_depth": 8,
+        "xgb_min_child_weight": 5,
+        "xgb_subsample": 0.80,
+        "xgb_colsample_bytree": 0.70,
+        "xgb_gamma": 0.0,
+        "xgb_reg_alpha": 0.0,
+        "random_state": 12345,
+    }
+
+    lambda_values = [3.0, 5.0, 8.0, 12.0]
+
+    return [
+        ExperimentConfig(
+            experiment_name=(f"xgboost_lambda_{str(value).replace('.', '_')}"),
+            xgb_reg_lambda=value,
+            **common,
+        )
+        for value in lambda_values
+    ]
