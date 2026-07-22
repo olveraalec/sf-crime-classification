@@ -1,0 +1,2 @@
+experiment_name,log_loss,accuracy,top_3_accuracy,macro_f1,test_rows
+xgboost_finalist_frozen_test,2.2027629769595243,0.3407914020517831,0.5959745969711774,0.06875294713829991,102350

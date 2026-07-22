@@ -1,0 +1,34 @@
+{
+  "run_id": "logistic_finalist_temporal_cv__20260716T204428Z",
+  "created_at_utc": "2026-07-16T20:44:28.627917+00:00",
+  "configuration": {
+    "experiment_name": "logistic_finalist_temporal_cv",
+    "model_name": "logistic",
+    "validation_mode": "temporal_cv",
+    "include_time_trend": true,
+    "add_cyclical": true,
+    "drop_original_cyclical": false,
+    "add_interactions": true,
+    "add_address_engineering": true,
+    "categorical_encoding": "onehot",
+    "numeric_strategy": "standard",
+    "geo_mode": "raw_distances",
+    "n_geo_clusters": 40,
+    "numeric_bins": 10,
+    "sparse_output": true,
+    "logistic_l1_ratio": 0.0,
+    "logistic_class_weight": null,
+    "logistic_c": 0.1,
+    "logistic_max_iter": 750,
+    "logistic_tol": 0.0001,
+    "logistic_solver": "saga",
+    "random_state": 12345
+  },
+  "fold_result_file": "results/experiments/logistic_finalist_temporal_cv__20260716T204428Z_folds.csv",
+  "summary_result_file": "results/summaries/logistic_finalist_temporal_cv__20260716T204428Z_summary.csv",
+  "validation_years": [
+    2011,
+    2012,
+    2013
+  ]
+}

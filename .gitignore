@@ -1,2 +1,59 @@
+# Virtual environments
 .venv/
-.venv/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code local settings
+.vscode/settings.json
+
+# Data files
+data/raw/*
+!data/raw/.gitkeep
+
+data/processed/*
+!data/processed/.gitkeep
+
+data/database/*
+!data/database/.gitkeep
+
+data/tableau/*
+!data/tableau/.gitkeep
+!data/tableau/*.csv
+
+# Model artifacts
+models/*
+!models/.gitkeep
+!models/*_metadata.json
+
+# Temporary figure files
+figures/temp/
+
+# Environment files
+.env
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Python cache and compiled files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+logs/*
+!logs/.gitkeep
+
+# Tableau temporary and recovery files
+*.twbr
+.~* 
