@@ -402,3 +402,7 @@ def xgboost_finalist_config() -> ExperimentConfig:
         xgb_reg_lambda=12.0,
         random_state=12345,
     )
+
+
+def xgboost_feature_importance_suite():
+    return [xgboost_finalist_config(experiment_name="xgboost_feature_importance")]

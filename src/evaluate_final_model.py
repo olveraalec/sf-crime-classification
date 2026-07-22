@@ -20,6 +20,7 @@ from src.features import build_feature_frame
 from src.models import build_model
 from src.transformers import build_tree_transformer
 from src.validation import create_frozen_temporal_test
+from sklearn.preprocessing import LabelEncoder, label_binarize
 
 
 FIGURE_DIR = Path("figures/evaluation")
@@ -318,6 +319,169 @@ def save_class_performance_plot(
     plt.close(fig)
 
 
+def calculate_calibration_table(
+    y_test: np.ndarray,
+    probabilities: np.ndarray,
+    n_bins: int = 10,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Calculate confidence calibration and multiclass probability metrics."""
+    predictions = probabilities.argmax(axis=1)
+    confidence = probabilities.max(axis=1)
+    correct = (predictions == y_test).astype(int)
+
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+
+    bin_ids = np.digitize(
+        confidence,
+        bin_edges[1:-1],
+        right=True,
+    )
+
+    rows = []
+
+    for bin_id in range(n_bins):
+        mask = bin_ids == bin_id
+        count = int(mask.sum())
+
+        if count == 0:
+            rows.append(
+                {
+                    "bin": bin_id + 1,
+                    "bin_lower": bin_edges[bin_id],
+                    "bin_upper": bin_edges[bin_id + 1],
+                    "row_count": 0,
+                    "mean_confidence": np.nan,
+                    "observed_accuracy": np.nan,
+                    "calibration_gap": np.nan,
+                }
+            )
+            continue
+
+        mean_confidence = float(confidence[mask].mean())
+        observed_accuracy = float(correct[mask].mean())
+
+        rows.append(
+            {
+                "bin": bin_id + 1,
+                "bin_lower": bin_edges[bin_id],
+                "bin_upper": bin_edges[bin_id + 1],
+                "row_count": count,
+                "mean_confidence": mean_confidence,
+                "observed_accuracy": observed_accuracy,
+                "calibration_gap": (observed_accuracy - mean_confidence),
+            }
+        )
+
+    calibration_df = pd.DataFrame(rows)
+
+    populated = calibration_df["row_count"] > 0
+    weights = calibration_df.loc[populated, "row_count"] / len(y_test)
+
+    expected_calibration_error = float(
+        (
+            weights
+            * calibration_df.loc[
+                populated,
+                "calibration_gap",
+            ].abs()
+        ).sum()
+    )
+
+    one_hot_targets = np.eye(
+        probabilities.shape[1],
+        dtype=float,
+    )[y_test]
+
+    multiclass_brier_score = float(
+        np.mean(
+            np.sum(
+                (probabilities - one_hot_targets) ** 2,
+                axis=1,
+            )
+        )
+    )
+
+    summary_df = pd.DataFrame(
+        [
+            {
+                "expected_calibration_error": (expected_calibration_error),
+                "multiclass_brier_score": (multiclass_brier_score),
+                "mean_confidence": float(confidence.mean()),
+                "observed_accuracy": float(correct.mean()),
+                "confidence_bias": float(confidence.mean() - correct.mean()),
+                "test_rows": len(y_test),
+            }
+        ]
+    )
+
+    return calibration_df, summary_df
+
+
+def save_reliability_diagram(
+    calibration_df: pd.DataFrame,
+) -> None:
+    """Save confidence-versus-accuracy calibration diagram."""
+    plot_df = calibration_df[calibration_df["row_count"] > 0]
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+
+    ax.plot(
+        [0, 1],
+        [0, 1],
+        linestyle="--",
+        label="Perfect calibration",
+    )
+
+    ax.plot(
+        plot_df["mean_confidence"],
+        plot_df["observed_accuracy"],
+        marker="o",
+        label="XGBoost",
+    )
+
+    ax.set_title("XGBoost Frozen-Test Reliability Diagram")
+    ax.set_xlabel("Mean Predicted Confidence")
+    ax.set_ylabel("Observed Accuracy")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend()
+
+    fig.tight_layout()
+    fig.savefig(
+        FIGURE_DIR / "xgboost_reliability_diagram.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close(fig)
+
+
+def save_confidence_histogram(
+    probabilities: np.ndarray,
+) -> None:
+    """Save the distribution of maximum predicted probabilities."""
+    confidence = probabilities.max(axis=1)
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    ax.hist(
+        confidence,
+        bins=np.linspace(0, 1, 21),
+        edgecolor="black",
+    )
+
+    ax.set_title("XGBoost Frozen-Test Prediction Confidence")
+    ax.set_xlabel("Maximum Predicted Probability")
+    ax.set_ylabel("Prediction Count")
+
+    fig.tight_layout()
+    fig.savefig(
+        FIGURE_DIR / "xgboost_confidence_histogram.png",
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close(fig)
+
+
 def save_outputs(artifacts: dict) -> None:
     """Calculate and save final diagnostic artifacts."""
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
@@ -350,6 +514,27 @@ def save_outputs(artifacts: dict) -> None:
         TABLEAU_DIR / "xgboost_per_class_metrics.csv",
         index=False,
     )
+
+    calibration_df, calibration_summary = calculate_calibration_table(
+        y_test=y_test,
+        probabilities=probabilities,
+    )
+
+    calibration_df.to_csv(
+        TABLEAU_DIR / "xgboost_calibration_bins.csv",
+        index=False,
+    )
+
+    calibration_summary.to_csv(
+        TABLEAU_DIR / "xgboost_calibration_summary.csv",
+        index=False,
+    )
+
+    save_reliability_diagram(calibration_df)
+    save_confidence_histogram(probabilities)
+
+    print("\nProbability calibration summary:")
+    print(calibration_summary.to_string(index=False))
 
     save_full_confusion_matrix(
         y_test=y_test,
