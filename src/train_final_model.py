@@ -1,70 +1,96 @@
+from __future__ import annotations
+
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import joblib
+import numpy as np
 from sklearn.preprocessing import LabelEncoder
 
+from src.config import get_project_root
 from src.data_loader import load_modeling_data
-from src.experiment_config import xgboost_finalist_config
-from src.features import build_feature_frame
+from src.experiment_config import (
+    ExperimentConfig,
+    xgboost_finalist_config,
+)
+from src.logger import get_logger
 from src.models import build_model
-from src.transformers import build_tree_transformer
+from src.pipeline_builder import (
+    build_features_from_config,
+    build_transformer_from_config,
+)
 
 
-MODEL_DIR = Path("models")
+logger = get_logger(__name__)
 
 
-def train_and_save_final_model() -> None:
+FINAL_MODEL_FILENAME = "xgboost_final_model.joblib"
+FINAL_TRANSFORMER_FILENAME = "xgboost_final_transformer.joblib"
+FINAL_LABEL_ENCODER_FILENAME = "xgboost_label_encoder.joblib"
+FINAL_METADATA_FILENAME = "xgboost_final_metadata.json"
+
+
+@dataclass(frozen=True)
+class FinalArtifactPaths:
+    """Filesystem locations for the final trained artifacts."""
+
+    model: Path
+    transformer: Path
+    label_encoder: Path
+    metadata: Path
+
+
+@dataclass(frozen=True)
+class FinalTrainingResult:
+    """Summary returned after final model training succeeds."""
+
+    artifacts: FinalArtifactPaths
+    training_rows: int
+    raw_feature_columns: int
+    transformed_feature_columns: int
+    class_count: int
+
+
+def get_final_artifact_paths(
+    model_directory: Path,
+) -> FinalArtifactPaths:
+    """Return the standard Version 2-compatible artifact paths."""
+    return FinalArtifactPaths(
+        model=model_directory / FINAL_MODEL_FILENAME,
+        transformer=(model_directory / FINAL_TRANSFORMER_FILENAME),
+        label_encoder=(model_directory / FINAL_LABEL_ENCODER_FILENAME),
+        metadata=model_directory / FINAL_METADATA_FILENAME,
+    )
+
+
+def build_final_metadata(
+    *,
+    training_rows: int,
+    raw_feature_shape: tuple[int, int],
+    transformed_feature_shape: tuple[int, int],
+    classes: np.ndarray,
+    config: dict[str, object],
+    trained_at_utc: str,
+) -> dict[str, Any]:
     """
-    Train the finalized XGBoost pipeline on all available modeling data
-    after model selection and frozen-test evaluation are complete.
+    Build final model metadata.
+
+    The evaluation metrics are preserved from the completed Version 2
+    temporal-validation and frozen-test evaluation process.
     """
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
-
-    config = xgboost_finalist_config()
-    df = load_modeling_data()
-
-    X = build_feature_frame(df)
-
-    label_encoder = LabelEncoder()
-    y = label_encoder.fit_transform(df["target"])
-
-    # Keep this transformer call identical to the working call in
-    # explainability.py and evaluate_final_model.py.
-    transformer = build_tree_transformer(
-        geo_mode=config.geo_mode,
-        n_geo_clusters=config.n_geo_clusters,
-    )
-
-    X_transformed = transformer.fit_transform(X)
-
-    model = build_model(config)
-    model.fit(X_transformed, y)
-
-    joblib.dump(
-        model,
-        MODEL_DIR / "xgboost_final_model.joblib",
-    )
-    joblib.dump(
-        transformer,
-        MODEL_DIR / "xgboost_final_transformer.joblib",
-    )
-    joblib.dump(
-        label_encoder,
-        MODEL_DIR / "xgboost_label_encoder.joblib",
-    )
-
-    metadata = {
+    return {
         "model_name": "xgboost_finalist",
-        "trained_at_utc": datetime.now(timezone.utc).isoformat(),
-        "training_rows": int(len(df)),
-        "raw_feature_rows": int(X.shape[0]),
-        "raw_feature_columns": int(X.shape[1]),
-        "transformed_feature_columns": int(X_transformed.shape[1]),
-        "class_count": int(len(label_encoder.classes_)),
-        "classes": label_encoder.classes_.tolist(),
-        "config": config.to_dict(),
+        "trained_at_utc": trained_at_utc,
+        "training_rows": int(training_rows),
+        "raw_feature_rows": int(raw_feature_shape[0]),
+        "raw_feature_columns": int(raw_feature_shape[1]),
+        "transformed_feature_columns": int(transformed_feature_shape[1]),
+        "class_count": int(len(classes)),
+        "classes": classes.tolist(),
+        "config": config,
         "validated_temporal_cv_log_loss_mean": 2.277305,
         "frozen_test_log_loss": 2.202763,
         "frozen_test_accuracy": 0.340791,
@@ -73,16 +99,150 @@ def train_and_save_final_model() -> None:
         "expected_calibration_error": 0.011697,
     }
 
-    with (MODEL_DIR / "xgboost_final_metadata.json").open(
-        "w", encoding="utf-8"
+
+def save_metadata(
+    metadata: dict[str, Any],
+    metadata_path: Path,
+) -> None:
+    """Write model metadata as formatted UTF-8 JSON."""
+    metadata_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    with metadata_path.open(
+        "w",
+        encoding="utf-8",
     ) as file:
-        json.dump(metadata, file, indent=2)
+        json.dump(
+            metadata,
+            file,
+            indent=2,
+        )
 
-    print("\nFinal model artifacts saved:")
-    for path in sorted(MODEL_DIR.glob("xgboost_final_*")):
-        print(f"  {path}")
 
-    print(f"  {MODEL_DIR / 'xgboost_label_encoder.joblib'}")
+def save_final_artifacts(
+    *,
+    model: object,
+    transformer: object,
+    label_encoder: LabelEncoder,
+    metadata: dict[str, Any],
+    artifact_paths: FinalArtifactPaths,
+) -> None:
+    """Persist all artifacts required for Version 3 inference."""
+    artifact_paths.model.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    joblib.dump(
+        model,
+        artifact_paths.model,
+    )
+    joblib.dump(
+        transformer,
+        artifact_paths.transformer,
+    )
+    joblib.dump(
+        label_encoder,
+        artifact_paths.label_encoder,
+    )
+
+    save_metadata(
+        metadata,
+        artifact_paths.metadata,
+    )
+
+
+def train_and_save_final_model(
+    *,
+    model_directory: Path | None = None,
+    config: ExperimentConfig | None = None,
+) -> FinalTrainingResult:
+    """
+    Train the finalized XGBoost model using all available modeling data.
+
+    The deterministic feature frame, learned transformer, and estimator
+    are all created from the same centralized experiment configuration.
+    """
+    project_root = get_project_root()
+
+    resolved_model_directory = (
+        model_directory if model_directory is not None else project_root / "models"
+    )
+
+    resolved_config = config if config is not None else xgboost_finalist_config()
+
+    resolved_config.validate()
+
+    artifact_paths = get_final_artifact_paths(resolved_model_directory)
+
+    logger.info("Loading final modeling dataset.")
+    data = load_modeling_data()
+
+    logger.info(
+        "Building deterministic features using configuration: %s",
+        resolved_config.experiment_name,
+    )
+    features = build_features_from_config(
+        data,
+        resolved_config,
+    )
+
+    label_encoder = LabelEncoder()
+    encoded_target = label_encoder.fit_transform(data["target"])
+
+    logger.info("Fitting final preprocessing transformer.")
+    transformer = build_transformer_from_config(resolved_config)
+    transformed_features = transformer.fit_transform(features)
+
+    logger.info("Training final estimator.")
+    model = build_model(resolved_config)
+    model.fit(
+        transformed_features,
+        encoded_target,
+    )
+
+    trained_at_utc = datetime.now(timezone.utc).isoformat()
+
+    metadata = build_final_metadata(
+        training_rows=len(data),
+        raw_feature_shape=features.shape,
+        transformed_feature_shape=transformed_features.shape,
+        classes=label_encoder.classes_,
+        config=resolved_config.to_dict(),
+        trained_at_utc=trained_at_utc,
+    )
+
+    save_final_artifacts(
+        model=model,
+        transformer=transformer,
+        label_encoder=label_encoder,
+        metadata=metadata,
+        artifact_paths=artifact_paths,
+    )
+
+    result = FinalTrainingResult(
+        artifacts=artifact_paths,
+        training_rows=int(len(data)),
+        raw_feature_columns=int(features.shape[1]),
+        transformed_feature_columns=int(transformed_features.shape[1]),
+        class_count=int(len(label_encoder.classes_)),
+    )
+
+    logger.info(
+        "Final artifacts saved to: %s",
+        resolved_model_directory,
+    )
+    logger.info(
+        "Training rows=%s, raw features=%s, transformed features=%s, classes=%s",
+        result.training_rows,
+        result.raw_feature_columns,
+        result.transformed_feature_columns,
+        result.class_count,
+    )
+
+    return result
 
 
 if __name__ == "__main__":
