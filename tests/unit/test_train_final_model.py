@@ -5,11 +5,13 @@ from pathlib import Path
 
 import numpy as np
 
-from src.train_final_model import (
+from src.artifact_contract import (
     FinalArtifactPaths,
+    get_final_artifact_paths,
+)
+from src.train_final_model import (
     FinalTrainingResult,
     build_final_metadata,
-    get_final_artifact_paths,
     save_metadata,
 )
 
