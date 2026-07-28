@@ -45,9 +45,9 @@ def register_exception_handlers(
         del request
 
         return JSONResponse(
-            status_code=500,
+            status_code=422,
             content=build_error_content(
-                error="inference_failed",
+                error="invalid_incident",
                 detail=str(error),
             ),
         )
