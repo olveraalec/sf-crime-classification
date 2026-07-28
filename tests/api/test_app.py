@@ -237,3 +237,40 @@ def test_openapi_schema_is_available() -> None:
     assert "/model/info" in paths
     assert "/predictions" in paths
     assert "/predictions/batch" in paths
+
+def test_response_contains_request_id_header() -> None:
+    with build_client() as client:
+        response = client.get("/health")
+
+    request_id = response.headers.get("X-Request-ID")
+
+    assert request_id is not None
+    assert len(request_id) > 0
+
+
+def test_each_request_receives_unique_request_id() -> None:
+    with build_client() as client:
+        first = client.get("/health")
+        second = client.get("/health")
+
+    assert first.headers["X-Request-ID"] != (
+        second.headers["X-Request-ID"]
+    )
+
+
+def test_validation_error_contains_request_id_header() -> None:
+    with build_client() as client:
+        response = client.post(
+            "/predictions",
+            json={
+                "incident": {
+                    **VALID_INCIDENT,
+                    "longitude": -181,
+                }
+            },
+        )
+
+    assert response.status_code == 422
+    assert response.headers.get(
+        "X-Request-ID"
+    ) is not None

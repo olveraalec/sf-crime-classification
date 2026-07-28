@@ -8,9 +8,28 @@ from src.incident_adapter import IncidentAdapterError
 from src.inference_engine import InferenceEngineError
 from src.logger import get_logger
 from src.prediction_service import PredictionServiceError
-
+from src.request_context import get_request_id
 
 logger = get_logger(__name__)
+
+
+def build_error_content(
+    *,
+    error: str,
+    detail: str,
+) -> dict[str, str]:
+    """Build an API error response with request correlation."""
+    content = {
+        "error": error,
+        "detail": detail,
+    }
+
+    request_id = get_request_id()
+
+    if request_id is not None:
+        content["request_id"] = request_id
+
+    return content
 
 
 def register_exception_handlers(
@@ -26,11 +45,11 @@ def register_exception_handlers(
         del request
 
         return JSONResponse(
-            status_code=422,
-            content={
-                "error": "invalid_incident",
-                "detail": str(error),
-            },
+            status_code=500,
+            content=build_error_content(
+                error="inference_failed",
+                detail=str(error),
+            ),
         )
 
     @app.exception_handler(PredictionServiceError)
@@ -46,10 +65,10 @@ def register_exception_handlers(
 
         return JSONResponse(
             status_code=500,
-            content={
-                "error": "prediction_failed",
-                "detail": "The model could not complete the prediction.",
-            },
+            content=build_error_content(
+                error="prediction_failed",
+                detail="The model could not complete the prediction.",
+            ),
         )
 
     @app.exception_handler(InferenceEngineError)
@@ -65,10 +84,10 @@ def register_exception_handlers(
 
         return JSONResponse(
             status_code=500,
-            content={
-                "error": "inference_failed",
-                "detail": str(error),
-            },
+            content=build_error_content(
+                error="inference_failed",
+                detail=str(error),
+            ),
         )
 
     @app.exception_handler(ArtifactError)
@@ -84,8 +103,8 @@ def register_exception_handlers(
 
         return JSONResponse(
             status_code=503,
-            content={
-                "error": "model_unavailable",
-                "detail": "Production model artifacts are unavailable.",
-            },
+            content=build_error_content(
+                error="model_unavailable",
+                detail="Production model artifacts are unavailable.",
+            ),
         )

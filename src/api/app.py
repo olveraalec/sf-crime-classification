@@ -15,6 +15,7 @@ from src.api.routes.prediction import (
 )
 from src.inference_engine import InferenceEngine
 from src.logger import get_logger
+from src.api.middleware import register_request_middleware
 
 
 logger = get_logger(__name__)
@@ -57,7 +58,7 @@ def create_app(
         version="3.0.0",
         lifespan=lifespan,
     )
-
+    register_request_middleware(app)
     register_exception_handlers(app)
 
     app.include_router(health_router)
