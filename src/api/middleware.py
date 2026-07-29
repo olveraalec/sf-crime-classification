@@ -13,6 +13,7 @@ from src.request_context import (
 )
 from src.structured_logging import log_event
 
+from src.metrics import MetricsRegistry
 
 logger = get_logger(__name__)
 
@@ -42,6 +43,15 @@ def register_request_middleware(
         except Exception:
             duration_ms = (perf_counter() - start_time) * 1000.0
 
+            registry = getattr(
+                request.app.state,
+                "metrics_registry",
+            )
+            registry.record_http_request(
+                duration_ms=duration_ms,
+                status_code=response.status_code,
+            )
+
             log_event(
                 logger,
                 "http_request_failed",
@@ -58,6 +68,13 @@ def register_request_middleware(
         else:
             duration_ms = (perf_counter() - start_time) * 1000.0
 
+            registry = request.app.state.metrics_registry
+
+            registry.record_http_request(
+                duration_ms=duration_ms,
+                status_code=response.status_code,
+            )
+
             response.headers[REQUEST_ID_HEADER] = request_id
 
             log_event(
@@ -66,10 +83,7 @@ def register_request_middleware(
                 method=request.method,
                 path=request.url.path,
                 status_code=response.status_code,
-                duration_ms=round(
-                    duration_ms,
-                    3,
-                ),
+                duration_ms=round(duration_ms, 3),
             )
 
             return response

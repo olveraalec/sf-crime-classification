@@ -6,6 +6,8 @@ from fastapi import Request
 
 from src.inference_engine import InferenceEngine
 
+from src.metrics import MetricsRegistry
+
 
 def get_inference_engine(
     request: Request,
@@ -23,4 +25,24 @@ def get_inference_engine(
     return cast(
         InferenceEngine,
         engine,
+    )
+
+
+def get_metrics_registry(
+    request: Request,
+) -> MetricsRegistry:
+    """Return the shared metrics registry."""
+
+    registry = getattr(
+        request.app.state,
+        "metrics_registry",
+        None,
+    )
+
+    if registry is None:
+        raise RuntimeError("Metrics registry has not been initialized.")
+
+    return cast(
+        MetricsRegistry,
+        registry,
     )

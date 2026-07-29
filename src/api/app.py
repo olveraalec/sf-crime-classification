@@ -16,7 +16,7 @@ from src.api.routes.prediction import (
 from src.inference_engine import InferenceEngine
 from src.logger import get_logger
 from src.api.middleware import register_request_middleware
-
+from src.metrics import MetricsRegistry
 
 logger = get_logger(__name__)
 
@@ -42,6 +42,7 @@ def create_app(
         logger.info("Loading production inference engine.")
 
         app.state.inference_engine = engine_factory()
+        app.state.metrics_registry = MetricsRegistry()
 
         logger.info("Production inference engine loaded.")
 
