@@ -4,7 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from src.api.dependencies import get_inference_engine
+from src.api.dependencies import (
+    get_app_settings,
+    get_inference_engine,
+    get_prediction_auditor,
+)
 from src.api.schemas import (
     BatchPredictionRequest,
     BatchPredictionResponse,
@@ -13,10 +17,15 @@ from src.api.schemas import (
     PredictionResponse,
     RankedPredictionResponse,
 )
+from src.config import AppSettings
 from src.incident_adapter import RawIncident
 from src.inference_engine import (
     InferenceEngine,
     InferenceResponse,
+)
+from src.prediction_auditor import (
+    PredictionAuditEvent,
+    PredictionAuditor,
 )
 
 
@@ -42,11 +51,11 @@ def request_to_raw_incident(
 def inference_to_response(
     inference: InferenceResponse,
 ) -> PredictionResponse:
-    """Convert a framework-independent result into an API schema."""
+    """Convert a domain inference result into an API response."""
     return PredictionResponse(
         input_position=inference.input_position,
         predicted_class=inference.predicted_class,
-        predicted_probability=(inference.predicted_probability),
+        predicted_probability=inference.predicted_probability,
         top_predictions=[
             RankedPredictionResponse(
                 rank=item.rank,
@@ -70,14 +79,48 @@ def predict_one(
         InferenceEngine,
         Depends(get_inference_engine),
     ],
+    auditor: Annotated[
+        PredictionAuditor,
+        Depends(get_prediction_auditor),
+    ],
+    settings: Annotated[
+        AppSettings,
+        Depends(get_app_settings),
+    ],
 ) -> PredictionResponse:
     """Run prediction for one raw incident."""
-    result = engine.predict_one(
-        request_to_raw_incident(request.incident),
-        top_k=request.top_k,
+    try:
+        result = engine.predict_one(
+            request_to_raw_incident(
+                request.incident
+            ),
+            top_k=request.top_k,
+        )
+    except Exception as error:
+        auditor.record_prediction_failure(
+            model_name=settings.model_name,
+            error_type=type(error).__name__,
+        )
+        raise
+
+    audit_event = PredictionAuditEvent.create(
+        predicted_classes=[
+            result.predicted_class,
+        ],
+        predicted_probabilities=[
+            result.predicted_probability,
+        ],
+        inference_time_ms=result.inference_time_ms,
+        model_name=settings.model_name,
     )
 
-    return inference_to_response(result)
+    auditor.record_prediction(
+        audit_event
+    )
+
+    return inference_to_response(
+        result
+    )
 
 
 @router.post(
@@ -91,16 +134,57 @@ def predict_batch(
         InferenceEngine,
         Depends(get_inference_engine),
     ],
+    auditor: Annotated[
+        PredictionAuditor,
+        Depends(get_prediction_auditor),
+    ],
+    settings: Annotated[
+        AppSettings,
+        Depends(get_app_settings),
+    ],
 ) -> BatchPredictionResponse:
-    """Run one vectorized prediction request for multiple incidents."""
-    incidents = [request_to_raw_incident(item) for item in request.incidents]
+    """Run one vectorized prediction request."""
+    incidents = [
+        request_to_raw_incident(item)
+        for item in request.incidents
+    ]
 
-    results = engine.predict_batch(
-        incidents,
-        top_k=request.top_k,
+    try:
+        results = engine.predict_batch(
+            incidents,
+            top_k=request.top_k,
+        )
+    except Exception as error:
+        auditor.record_prediction_failure(
+            model_name=settings.model_name,
+            error_type=type(error).__name__,
+        )
+        raise
+
+    audit_event = PredictionAuditEvent.create(
+        predicted_classes=[
+            item.predicted_class
+            for item in results
+        ],
+        predicted_probabilities=[
+            item.predicted_probability
+            for item in results
+        ],
+        inference_time_ms=sum(
+            item.inference_time_ms
+            for item in results
+        ),
+        model_name=settings.model_name,
     )
 
-    predictions = [inference_to_response(item) for item in results]
+    auditor.record_prediction(
+        audit_event
+    )
+
+    predictions = [
+        inference_to_response(item)
+        for item in results
+    ]
 
     return BatchPredictionResponse(
         predictions=predictions,

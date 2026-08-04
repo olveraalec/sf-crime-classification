@@ -665,3 +665,122 @@ def build_naive_bayes_transformer(
             ),
         ]
     )
+
+
+def build_logistic_transformer(
+    categorical_encoding: CategoricalEncoding = "onehot",
+    numeric_strategy: NumericStrategy = "standard",
+    geo_mode: GeoMode = "raw",
+    n_geo_clusters: int = 40,
+    sparse_output: bool = True,
+    random_state: int = 12345,
+) -> Pipeline:
+    """Build a configurable Logistic Regression transformer."""
+    config = TransformerConfig(
+        categorical_encoding=categorical_encoding,
+        numeric_strategy=numeric_strategy,
+        geo_mode=geo_mode,
+        n_geo_clusters=n_geo_clusters,
+        sparse_output=sparse_output,
+        random_state=random_state,
+    )
+
+    return build_configurable_transformer(config)
+
+
+def build_tree_transformer(
+    categorical_encoding: CategoricalEncoding = "ordinal",
+    numeric_strategy: NumericStrategy = "passthrough",
+    geo_mode: GeoMode = "raw_cluster",
+    n_geo_clusters: int = 40,
+    random_state: int = 12345,
+) -> Pipeline:
+    """Build a configurable transformer for tree models."""
+    config = TransformerConfig(
+        categorical_encoding=categorical_encoding,
+        numeric_strategy=numeric_strategy,
+        geo_mode=geo_mode,
+        n_geo_clusters=n_geo_clusters,
+        sparse_output=False,
+        random_state=random_state,
+    )
+
+    return build_configurable_transformer(config)
+
+
+def build_naive_bayes_transformer(
+    numeric_bins: int = 10,
+    geo_mode: GeoMode = "cluster",
+    n_geo_clusters: int = 40,
+    random_state: int = 12345,
+) -> Pipeline:
+    """
+    Build the discrete, non-negative CategoricalNB transformer.
+
+    Categorical unknown values are shifted from -1 to 0, while known values
+    become 1, 2, 3, and so on.
+    """
+    numeric_pipeline = build_numeric_pipeline(
+        strategy="binned",
+        numeric_bins=numeric_bins,
+        random_state=random_state,
+    )
+
+    categorical_pipeline = Pipeline(
+        steps=[
+            (
+                "imputer",
+                SimpleImputer(
+                    strategy="constant",
+                    fill_value="UNKNOWN",
+                ),
+            ),
+            (
+                "encoder",
+                OrdinalEncoder(
+                    handle_unknown="use_encoded_value",
+                    unknown_value=-1,
+                    encoded_missing_value=-1,
+                ),
+            ),
+            (
+                "shift",
+                AddConstantTransformer(constant=1),
+            ),
+        ]
+    )
+
+    column_transformer = ColumnTransformer(
+        transformers=[
+            (
+                "numeric",
+                numeric_pipeline,
+                select_numeric_columns,
+            ),
+            (
+                "categorical",
+                categorical_pipeline,
+                select_categorical_columns,
+            ),
+        ],
+        remainder="drop",
+        sparse_threshold=0.0,
+        verbose_feature_names_out=False,
+    )
+
+    return Pipeline(
+        steps=[
+            (
+                "geospatial",
+                GeoSpatialTransformer(
+                    mode=geo_mode,
+                    n_clusters=n_geo_clusters,
+                    random_state=random_state,
+                ),
+            ),
+            (
+                "columns",
+                column_transformer,
+            ),
+        ]
+    )

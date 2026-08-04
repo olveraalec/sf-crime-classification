@@ -151,6 +151,12 @@ def test_single_prediction_endpoint() -> None:
     assert len(body["top_predictions"]) == 2
     assert body["top_predictions"][0]["rank"] == 1
 
+    snapshot = client.app.state.metrics_registry.snapshot()
+
+    assert snapshot.successful_prediction_operations == 1
+    assert snapshot.failed_prediction_operations == 0
+    assert snapshot.records_processed == 1
+
 
 def test_batch_prediction_endpoint() -> None:
     with build_client() as client:
@@ -178,6 +184,13 @@ def test_batch_prediction_endpoint() -> None:
     assert body["predictions"][0]["input_position"] == 0
     assert body["predictions"][1]["input_position"] == 1
 
+    snapshot = client.app.state.metrics_registry.snapshot()
+
+    assert snapshot.successful_prediction_operations == 1
+    assert snapshot.failed_prediction_operations == 0
+    assert snapshot.records_processed == 2
+    assert snapshot.average_inference_latency_ms >= 0
+
 
 def test_prediction_rejects_invalid_coordinate() -> None:
     invalid_incident = {
@@ -194,6 +207,42 @@ def test_prediction_rejects_invalid_coordinate() -> None:
         )
 
     assert response.status_code == 422
+
+
+def test_prediction_records_inference_engine_failure() -> None:
+    @dataclass
+    class FailingInferenceEngine(FakeInferenceEngine):
+        def predict_one(
+            self,
+            incident,
+            *,
+            top_k: int = 3,
+        ) -> InferenceResponse:
+            del incident, top_k
+            raise RuntimeError("Synthetic inference failure.")
+
+    app = create_app(
+        engine_factory=FailingInferenceEngine,
+    )
+
+    with TestClient(
+        app,
+        raise_server_exceptions=False,
+    ) as client:
+        response = client.post(
+            "/predictions",
+            json={
+                "incident": VALID_INCIDENT,
+                "top_k": 2,
+            },
+        )
+
+        snapshot = client.app.state.metrics_registry.snapshot()
+
+    assert response.status_code == 500
+    assert snapshot.successful_prediction_operations == 0
+    assert snapshot.failed_prediction_operations == 1
+    assert snapshot.records_processed == 0
 
 
 def test_prediction_rejects_unknown_request_field() -> None:
@@ -234,18 +283,20 @@ def test_openapi_schema_is_available() -> None:
     paths = response.json()["paths"]
 
     assert "/health" in paths
+    assert "/health/live" in paths
+    assert "/health/ready" in paths
     assert "/model/info" in paths
     assert "/predictions" in paths
     assert "/predictions/batch" in paths
 
-def test_response_contains_request_id_header() -> None:
+
+def test_response_includes_request_id_header() -> None:
     with build_client() as client:
         response = client.get("/health")
 
-    request_id = response.headers.get("X-Request-ID")
-
-    assert request_id is not None
-    assert len(request_id) > 0
+    assert response.status_code == 200
+    assert "X-Request-ID" in response.headers
+    assert response.headers["X-Request-ID"]
 
 
 def test_each_request_receives_unique_request_id() -> None:
@@ -253,24 +304,32 @@ def test_each_request_receives_unique_request_id() -> None:
         first = client.get("/health")
         second = client.get("/health")
 
-    assert first.headers["X-Request-ID"] != (
-        second.headers["X-Request-ID"]
-    )
+    first_request_id = first.headers["X-Request-ID"]
+    second_request_id = second.headers["X-Request-ID"]
+
+    assert first_request_id
+    assert second_request_id
+    assert first_request_id != second_request_id
 
 
-def test_validation_error_contains_request_id_header() -> None:
+def test_error_response_includes_request_id() -> None:
+    invalid_incident = {
+        **VALID_INCIDENT,
+        "longitude": -181,
+    }
+
     with build_client() as client:
         response = client.post(
             "/predictions",
             json={
-                "incident": {
-                    **VALID_INCIDENT,
-                    "longitude": -181,
-                }
+                "incident": invalid_incident,
             },
         )
 
     assert response.status_code == 422
-    assert response.headers.get(
-        "X-Request-ID"
-    ) is not None
+
+    request_id = response.headers["X-Request-ID"]
+    body = response.json()
+
+    assert request_id
+    assert body["request_id"] == request_id

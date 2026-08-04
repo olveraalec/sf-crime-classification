@@ -115,6 +115,23 @@ class HealthResponse(BaseModel):
     model_loaded: bool
 
 
+class LivenessResponse(BaseModel):
+    """Indicate whether the API process is alive."""
+
+    status: str
+    service: str
+
+
+class ReadinessResponse(BaseModel):
+    """Indicate whether all prediction dependencies are ready."""
+
+    status: str
+    service: str
+    ready: bool
+    checks: dict[str, bool]
+    detail: str | None = None
+
+
 class ModelInfoResponse(BaseModel):
     """Public metadata for the loaded production model."""
 

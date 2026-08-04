@@ -25,3 +25,20 @@ validation:
 modeling:
   primary_metric: log_loss
   baseline_model: logistic_regression
+
+api:
+  title: San Francisco Crime Classification API
+  description: Production inference service for the Version 2 XGBoost crime-classification pipeline.
+  version: "3.0.0"
+  service_name: sf-crime-classification-api
+
+model:
+  name: xgboost_finalist
+
+logging:
+  level: INFO
+  filename: sf_crime_pipeline.log
+
+server:
+  host: 0.0.0.0
+  port: 8000

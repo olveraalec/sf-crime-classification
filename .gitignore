@@ -57,3 +57,8 @@ logs/*
 # Tableau temporary and recovery files
 *.twbr
 .~* 
+
+# Temporary code-review bundles
+*_review.txt
+*_bundle.txt
+*_code_review.zip

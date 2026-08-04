@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 
 from src.artifact_loader import ArtifactError
 from src.incident_adapter import IncidentAdapterError
@@ -36,6 +38,28 @@ def register_exception_handlers(
     app: FastAPI,
 ) -> None:
     """Register consistent JSON handlers for inference failures."""
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_request_validation_error(
+        request: Request,
+        error: RequestValidationError,
+    ) -> JSONResponse:
+        del request
+
+        content = {
+            "error": "request_validation_failed",
+            "detail": jsonable_encoder(error.errors()),
+        }
+
+        request_id = get_request_id()
+
+        if request_id is not None:
+            content["request_id"] = request_id
+
+        return JSONResponse(
+            status_code=422,
+            content=content,
+        )
 
     @app.exception_handler(IncidentAdapterError)
     async def handle_incident_adapter_error(

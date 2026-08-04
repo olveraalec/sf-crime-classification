@@ -46,11 +46,17 @@ def register_request_middleware(
             registry = getattr(
                 request.app.state,
                 "metrics_registry",
+                None,
             )
-            registry.record_http_request(
-                duration_ms=duration_ms,
-                status_code=response.status_code,
-            )
+
+            if isinstance(
+                registry,
+                MetricsRegistry,
+            ):
+                registry.record_http_request(
+                    duration_ms=duration_ms,
+                    status_code=500,
+                )
 
             log_event(
                 logger,
@@ -58,6 +64,7 @@ def register_request_middleware(
                 level=logging.ERROR,
                 method=request.method,
                 path=request.url.path,
+                status_code=500,
                 duration_ms=round(
                     duration_ms,
                     3,
@@ -68,12 +75,20 @@ def register_request_middleware(
         else:
             duration_ms = (perf_counter() - start_time) * 1000.0
 
-            registry = request.app.state.metrics_registry
-
-            registry.record_http_request(
-                duration_ms=duration_ms,
-                status_code=response.status_code,
+            registry = getattr(
+                request.app.state,
+                "metrics_registry",
+                None,
             )
+
+            if isinstance(
+                registry,
+                MetricsRegistry,
+            ):
+                registry.record_http_request(
+                    duration_ms=duration_ms,
+                    status_code=response.status_code,
+                )
 
             response.headers[REQUEST_ID_HEADER] = request_id
 
@@ -83,9 +98,10 @@ def register_request_middleware(
                 method=request.method,
                 path=request.url.path,
                 status_code=response.status_code,
-                duration_ms=round(duration_ms, 3),
+                duration_ms=round(
+                    duration_ms,
+                    3,
+                ),
             )
 
             return response
-        finally:
-            reset_request_id(context_token)
