@@ -26,7 +26,8 @@ README_images
 coverage.xml
 htmlcov
 
-models/*.joblib
-models/*.pkl
-
 data/raw
+
+.DS_Store
+*_review.txt
+*_bundle.txt

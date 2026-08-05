@@ -8,7 +8,8 @@ paths:
   processed_data: data/processed
   database: data/database/sf_crime.duckdb
   tableau: data/tableau
-  models: models
+  paths:
+  models: artifacts/models
   figures: figures
   logs: logs
 

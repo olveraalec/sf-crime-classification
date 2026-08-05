@@ -1,0 +1,76 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - version-3-api-deployment
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
+        with:
+          version: "0.12.1"
+          python-version: "3.11"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Verify lockfile is current
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Display environment
+        run: |
+          uv run python --version
+          uv --version
+
+      - name: Run test suite
+        run: uv run pytest -q
+
+  docker-builder:
+    name: Docker builder validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs:
+      - python-tests
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker builder stage
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: builder
+          push: false
+          tags: sf-crime-api:ci-builder
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -13,7 +13,10 @@ from src.artifact_contract import (
     FinalArtifactPaths,
     get_final_artifact_paths,
 )
-from src.config import get_project_root
+from src.config import (
+    get_project_root,
+    load_config,
+)
 from src.logger import get_logger
 
 
@@ -202,11 +205,17 @@ def load_artifact_bundle(
     model_directory: Path | None = None,
 ) -> ArtifactBundle:
     """Load and validate all artifacts needed for model inference."""
-    resolved_model_directory = (
-        model_directory
-        if model_directory is not None
-        else get_project_root() / "models"
-    )
+    if model_directory is not None:
+        resolved_model_directory = model_directory
+    else:
+        config = load_config()
+        configured_path = Path(config["paths"]["models"])
+
+        resolved_model_directory = (
+            configured_path
+            if configured_path.is_absolute()
+            else get_project_root() / configured_path
+        )
 
     paths = get_final_artifact_paths(resolved_model_directory)
 
