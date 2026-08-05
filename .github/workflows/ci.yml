@@ -1,4 +1,5 @@
 name: Continuous Integration
+name: Continuous Integration
 
 on:
   push:
@@ -51,10 +52,10 @@ jobs:
       - name: Run test suite
         run: uv run pytest -q
 
-  docker-builder:
-    name: Docker builder validation
+  docker-runtime:
+    name: Docker runtime smoke test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs:
       - python-tests
 
@@ -62,15 +63,175 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Download versioned model artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts/models
+
+          gh release download model-artifacts-v1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir artifacts/models \
+            --clobber
+
+      - name: Verify model artifact checksums
+        working-directory: artifacts/models
+        run: |
+          echo "Downloaded model artifacts:"
+          ls -lh
+
+          sha256sum --check SHA256SUMS
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build Docker builder stage
+      - name: Build complete runtime image
         uses: docker/build-push-action@v7
         with:
           context: .
-          target: builder
+          target: runtime
           push: false
-          tags: sf-crime-api:ci-builder
+          load: true
+          tags: sf-crime-api:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Start API container
+        run: |
+          docker run \
+            --detach \
+            --rm \
+            --name sf-crime-api-ci \
+            --publish 8000:8000 \
+            sf-crime-api:ci
+
+      - name: Wait for prediction readiness
+        run: |
+          ready=false
+
+          for attempt in $(seq 1 30); do
+            echo "Readiness attempt ${attempt}/30"
+
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              http://127.0.0.1:8000/health/ready \
+              > readiness.json; then
+              ready=true
+              break
+            fi
+
+            if ! docker inspect sf-crime-api-ci > /dev/null 2>&1; then
+              echo "Container stopped before becoming ready."
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if [ "$ready" != "true" ]; then
+            echo "API did not become ready within 60 seconds."
+            exit 1
+          fi
+
+          echo "Readiness response:"
+          cat readiness.json
+
+          python3 - <<'PY'
+          import json
+
+          with open("readiness.json", encoding="utf-8") as file:
+              body = json.load(file)
+
+          assert body["status"] == "ready"
+          assert body["ready"] is True
+          assert all(body["checks"].values())
+
+          print("Readiness response validated.")
+          PY
+
+      - name: Validate model information
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            http://127.0.0.1:8000/model/info \
+            > model-info.json
+
+          echo "Model information response:"
+          cat model-info.json
+
+          python3 - <<'PY'
+          import json
+
+          with open("model-info.json", encoding="utf-8") as file:
+              body = json.load(file)
+
+          assert body["model_name"] == "xgboost_finalist"
+          assert body["class_count"] > 0
+          assert body["raw_feature_columns"] > 0
+          assert body["transformed_feature_columns"] > 0
+
+          print("Model information response validated.")
+          PY
+
+      - name: Test real prediction
+        run: |
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data '{
+              "incident": {
+                "incident_timestamp": "2015-05-13T23:53:00",
+                "pd_district": "NORTHERN",
+                "address": "OAK ST / LAGUNA ST",
+                "longitude": -122.425892,
+                "latitude": 37.774599
+              },
+              "top_k": 3
+            }' \
+            http://127.0.0.1:8000/predictions \
+            > prediction.json
+
+          echo "Prediction response:"
+          cat prediction.json
+
+          python3 - <<'PY'
+          import json
+
+          with open("prediction.json", encoding="utf-8") as file:
+              body = json.load(file)
+
+          assert body["input_position"] == 0
+          assert isinstance(body["predicted_class"], str)
+          assert body["predicted_class"]
+          assert 0.0 <= body["predicted_probability"] <= 1.0
+          assert len(body["top_predictions"]) == 3
+          assert body["inference_time_ms"] >= 0.0
+
+          for expected_rank, prediction in enumerate(
+              body["top_predictions"],
+              start=1,
+          ):
+              assert prediction["rank"] == expected_rank
+              assert prediction["crime_category"]
+              assert 0.0 <= prediction["probability"] <= 1.0
+
+          print("Real prediction response validated.")
+          PY
+
+      - name: Show container logs
+        if: always()
+        run: |
+          echo "Container logs:"
+          docker logs sf-crime-api-ci || true
+
+      - name: Stop API container
+        if: always()
+        run: |
+          docker stop sf-crime-api-ci || true
