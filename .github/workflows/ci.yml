@@ -1,4 +1,4 @@
-name: Continuous Integration
+name: CI/CD Pipeline
 
 on:
   push:
@@ -16,10 +16,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-cd-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # =====================================================
+  # Job 1: Python unit, integration, and API tests
+  # =====================================================
   python-tests:
     name: Python tests
     runs-on: ubuntu-latest
@@ -51,6 +54,9 @@ jobs:
       - name: Run test suite
         run: uv run pytest -q
 
+  # =====================================================
+  # Job 2: Build and smoke-test the complete container
+  # =====================================================
   docker-runtime:
     name: Docker runtime smoke test
     runs-on: ubuntu-latest
@@ -234,3 +240,414 @@ jobs:
         if: ${{ always() }}
         run: |
           docker stop sf-crime-api-ci || true
+
+  # =====================================================
+  # Job 3: Publish the image and deploy it to EC2
+  # =====================================================
+  deploy:
+    name: Deploy production container
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs:
+      - python-tests
+      - docker-runtime
+
+    # Never deploy pull requests. Deployment is permitted only from the
+    # branches included in the AWS OIDC trust policy.
+    if: >-
+      github.event_name != 'pull_request' &&
+      (
+        github.ref == 'refs/heads/version-3-api-deployment' ||
+        github.ref == 'refs/heads/main'
+      )
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
+      EC2_INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+      IMAGE_TAG: ${{ github.sha }}
+      CONTAINER_NAME: sf-crime-api
+      CONTAINER_PORT: "8000"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Configure temporary AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: sf-crime-github-deployment
+
+      - name: Confirm AWS deployment identity
+        run: |
+          aws sts get-caller-identity
+          echo "Deploying commit: $GITHUB_SHA"
+          echo "AWS region: $AWS_REGION"
+          echo "ECR repository: $ECR_REPOSITORY"
+          echo "EC2 instance: $EC2_INSTANCE_ID"
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Define immutable image URI
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+
+          echo "IMAGE_URI=${IMAGE_URI}" >> "$GITHUB_ENV"
+          echo "Production image: ${IMAGE_URI}"
+
+      # The ECR repository uses immutable tags. A manual rerun for the same
+      # commit must reuse the existing image instead of attempting to push
+      # the same SHA tag again.
+      - name: Check whether commit image already exists
+        id: image-check
+        run: |
+          if aws ecr describe-images \
+            --region "$AWS_REGION" \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Image already exists for commit $IMAGE_TAG."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "A new image will be built and pushed."
+          fi
+
+      - name: Download versioned model artifacts
+        if: steps.image-check.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p artifacts/models
+
+          gh release download model-artifacts-v1 \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir artifacts/models \
+            --clobber
+
+      - name: Verify model artifact checksums
+        if: steps.image-check.outputs.exists != 'true'
+        working-directory: artifacts/models
+        run: |
+          ls -lh
+          sha256sum --check SHA256SUMS
+
+      - name: Set up Docker Buildx
+        if: steps.image-check.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push immutable production image
+        if: steps.image-check.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: runtime
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ vars.AWS_ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Confirm image is available in ECR
+        run: |
+          aws ecr describe-images \
+            --region "$AWS_REGION" \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --query "imageDetails[0].{
+              Digest:imageDigest,
+              PushedAt:imagePushedAt,
+              SizeBytes:imageSizeInBytes,
+              Tags:imageTags
+            }" \
+            --output table
+
+      - name: Create EC2 deployment command
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import textwrap
+          from pathlib import Path
+
+          script = textwrap.dedent(
+              r"""
+              #!/bin/bash
+              set -euo pipefail
+
+              AWS_REGION="__AWS_REGION__"
+              IMAGE_URI="__IMAGE_URI__"
+              ECR_REGISTRY="__ECR_REGISTRY__"
+              CONTAINER_NAME="__CONTAINER_NAME__"
+              CONTAINER_PORT="__CONTAINER_PORT__"
+
+              echo "Authenticating Docker with Amazon ECR."
+              aws ecr get-login-password --region "$AWS_REGION" \
+                | docker login \
+                    --username AWS \
+                    --password-stdin "$ECR_REGISTRY"
+
+              echo "Pulling immutable deployment image: $IMAGE_URI"
+              docker pull "$IMAGE_URI"
+
+              OLD_IMAGE="$(
+                docker inspect \
+                  --format='{{.Config.Image}}' \
+                  "$CONTAINER_NAME" \
+                  2>/dev/null \
+                  || true
+              )"
+
+              echo "Previously deployed image: ${OLD_IMAGE:-none}"
+
+              docker rm \
+                --force \
+                "$CONTAINER_NAME" \
+                2>/dev/null \
+                || true
+
+              echo "Starting replacement container."
+              docker run \
+                --detach \
+                --restart unless-stopped \
+                --name "$CONTAINER_NAME" \
+                --publish "$CONTAINER_PORT:$CONTAINER_PORT" \
+                "$IMAGE_URI"
+
+              ready=false
+
+              for attempt in $(seq 1 60); do
+                echo "Deployment readiness attempt ${attempt}/60"
+
+                if curl \
+                  --fail \
+                  --silent \
+                  --show-error \
+                  "http://127.0.0.1:${CONTAINER_PORT}/health/ready" \
+                  > /tmp/sf-crime-readiness.json; then
+                  ready=true
+                  break
+                fi
+
+                if ! docker inspect "$CONTAINER_NAME" > /dev/null 2>&1; then
+                  echo "Replacement container stopped unexpectedly."
+                  break
+                fi
+
+                sleep 2
+              done
+
+              if [ "$ready" != "true" ]; then
+                echo "Replacement container failed its readiness check."
+                docker logs "$CONTAINER_NAME" || true
+
+                docker rm \
+                  --force \
+                  "$CONTAINER_NAME" \
+                  2>/dev/null \
+                  || true
+
+                if [ -n "$OLD_IMAGE" ]; then
+                  echo "Rolling back to: $OLD_IMAGE"
+
+                  docker run \
+                    --detach \
+                    --restart unless-stopped \
+                    --name "$CONTAINER_NAME" \
+                    --publish "$CONTAINER_PORT:$CONTAINER_PORT" \
+                    "$OLD_IMAGE"
+                else
+                  echo "No previous container image is available for rollback."
+                fi
+
+                exit 1
+              fi
+
+              echo "Readiness response:"
+              cat /tmp/sf-crime-readiness.json
+
+              echo "Running model information smoke test."
+              curl \
+                --fail \
+                --silent \
+                --show-error \
+                "http://127.0.0.1:${CONTAINER_PORT}/model/info"
+
+              echo
+              echo "Deployment completed successfully."
+
+              docker image prune --force
+              """
+          ).strip()
+
+          image_uri = os.environ["IMAGE_URI"]
+
+          replacements = {
+              "__AWS_REGION__": os.environ["AWS_REGION"],
+              "__IMAGE_URI__": image_uri,
+              "__ECR_REGISTRY__": image_uri.split("/", maxsplit=1)[0],
+              "__CONTAINER_NAME__": os.environ["CONTAINER_NAME"],
+              "__CONTAINER_PORT__": os.environ["CONTAINER_PORT"],
+          }
+
+          for placeholder, value in replacements.items():
+              script = script.replace(
+                  placeholder,
+                  value,
+              )
+
+          parameters = {
+              "commands": [script],
+              "executionTimeout": ["900"],
+          }
+
+          Path("ssm-deployment-parameters.json").write_text(
+              json.dumps(parameters),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Send deployment through Systems Manager
+        id: send-deployment
+        run: |
+          COMMAND_ID="$(
+            aws ssm send-command \
+              --region "$AWS_REGION" \
+              --instance-ids "$EC2_INSTANCE_ID" \
+              --document-name "AWS-RunShellScript" \
+              --comment "Deploy SF Crime image ${IMAGE_TAG}" \
+              --timeout-seconds 900 \
+              --parameters file://ssm-deployment-parameters.json \
+              --query "Command.CommandId" \
+              --output text
+          )"
+
+          echo "command-id=$COMMAND_ID" >> "$GITHUB_OUTPUT"
+          echo "SSM command ID: $COMMAND_ID"
+
+      - name: Wait for EC2 deployment
+        env:
+          COMMAND_ID: ${{ steps.send-deployment.outputs.command-id }}
+        run: |
+          terminal_status=""
+
+          for attempt in $(seq 1 120); do
+            status="$(
+              aws ssm get-command-invocation \
+                --region "$AWS_REGION" \
+                --command-id "$COMMAND_ID" \
+                --instance-id "$EC2_INSTANCE_ID" \
+                --query "Status" \
+                --output text \
+                2>/dev/null \
+                || true
+            )"
+
+            echo "Deployment attempt ${attempt}/120: ${status:-not-yet-available}"
+
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut|Cancelling)
+                terminal_status="$status"
+                break
+                ;;
+            esac
+
+            sleep 5
+          done
+
+          if [ -z "$terminal_status" ]; then
+            echo "Deployment did not finish within ten minutes."
+            exit 1
+          fi
+
+          echo "Final deployment status: $terminal_status"
+
+          if [ "$terminal_status" != "Success" ]; then
+            exit 1
+          fi
+
+      - name: Display EC2 deployment output
+        if: ${{ always() }}
+        env:
+          COMMAND_ID: ${{ steps.send-deployment.outputs.command-id }}
+        run: |
+          if [ -z "${COMMAND_ID:-}" ]; then
+            echo "No SSM command was created."
+            exit 0
+          fi
+
+          aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --command-id "$COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query "{
+              Status:Status,
+              StandardOutput:StandardOutputContent,
+              StandardError:StandardErrorContent
+            }" \
+            --output json \
+            || true
+
+      - name: Confirm deployed container through SSM
+        if: ${{ success() }}
+        run: |
+          VERIFY_COMMAND_ID="$(
+            aws ssm send-command \
+              --region "$AWS_REGION" \
+              --instance-ids "$EC2_INSTANCE_ID" \
+              --document-name "AWS-RunShellScript" \
+              --comment "Verify SF Crime deployment" \
+              --parameters 'commands=[
+                "docker ps --filter name=sf-crime-api",
+                "curl --fail --silent --show-error http://127.0.0.1:8000/health/live",
+                "curl --fail --silent --show-error http://127.0.0.1:8000/health/ready"
+              ]' \
+              --query "Command.CommandId" \
+              --output text
+          )"
+
+          for attempt in $(seq 1 30); do
+            status="$(
+              aws ssm get-command-invocation \
+                --region "$AWS_REGION" \
+                --command-id "$VERIFY_COMMAND_ID" \
+                --instance-id "$EC2_INSTANCE_ID" \
+                --query "Status" \
+                --output text \
+                2>/dev/null \
+                || true
+            )"
+
+            echo "Verification attempt ${attempt}/30: ${status:-pending}"
+
+            if [ "$status" = "Success" ]; then
+              aws ssm get-command-invocation \
+                --region "$AWS_REGION" \
+                --command-id "$VERIFY_COMMAND_ID" \
+                --instance-id "$EC2_INSTANCE_ID" \
+                --query "StandardOutputContent" \
+                --output text
+
+              exit 0
+            fi
+
+            case "$status" in
+              Failed|Cancelled|TimedOut|Cancelling)
+                exit 1
+                ;;
+            esac
+
+            sleep 2
+          done
+
+          echo "Deployment verification timed out."
+          exit 1
