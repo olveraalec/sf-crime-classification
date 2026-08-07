@@ -270,8 +270,6 @@ jobs:
       ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
       EC2_INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
       IMAGE_TAG: ${{ github.sha }}
-      CONTAINER_NAME: sf-crime-api
-      CONTAINER_PORT: "8000"
 
     steps:
       - name: Check out repository
@@ -371,142 +369,54 @@ jobs:
             }" \
             --output table
 
-      - name: Create EC2 deployment command
+      - name: Prepare EC2 deployment script
+        run: |
+          test -f scripts/deploy_ec2.sh
+          bash -n scripts/deploy_ec2.sh
+
+          sed \
+            -e "s|__AWS_REGION__|${AWS_REGION}|g" \
+            -e "s|__IMAGE_URI__|${IMAGE_URI}|g" \
+            scripts/deploy_ec2.sh \
+            > /tmp/deploy-sf-crime.sh
+
+          if grep -qE '__AWS_REGION__|__IMAGE_URI__' /tmp/deploy-sf-crime.sh; then
+            echo "Deployment script still contains unresolved placeholders."
+            exit 1
+          fi
+
+          bash -n /tmp/deploy-sf-crime.sh
+          chmod 700 /tmp/deploy-sf-crime.sh
+
+          echo "Prepared deployment script for:"
+          echo "$IMAGE_URI"
+
+      - name: Create Systems Manager parameters
         run: |
           python3 - <<'PY'
+          import base64
           import json
-          import os
-          import textwrap
           from pathlib import Path
 
-          script = textwrap.dedent(
-              r"""
-              #!/bin/bash
-              set -euo pipefail
+          script_path = Path("/tmp/deploy-sf-crime.sh")
+          encoded_script = base64.b64encode(
+              script_path.read_bytes()
+          ).decode("ascii")
 
-              AWS_REGION="__AWS_REGION__"
-              IMAGE_URI="__IMAGE_URI__"
-              ECR_REGISTRY="__ECR_REGISTRY__"
-              CONTAINER_NAME="__CONTAINER_NAME__"
-              CONTAINER_PORT="__CONTAINER_PORT__"
-
-              echo "Authenticating Docker with Amazon ECR."
-              aws ecr get-login-password --region "$AWS_REGION" \
-                | docker login \
-                    --username AWS \
-                    --password-stdin "$ECR_REGISTRY"
-
-              echo "Pulling immutable deployment image: $IMAGE_URI"
-              docker pull "$IMAGE_URI"
-
-              OLD_IMAGE="$(
-                docker inspect \
-                  --format='{{.Config.Image}}' \
-                  "$CONTAINER_NAME" \
-                  2>/dev/null \
-                  || true
-              )"
-
-              echo "Previously deployed image: ${OLD_IMAGE:-none}"
-
-              docker rm \
-                --force \
-                "$CONTAINER_NAME" \
-                2>/dev/null \
-                || true
-
-              echo "Starting replacement container."
-              docker run \
-                --detach \
-                --restart unless-stopped \
-                --name "$CONTAINER_NAME" \
-                --publish "$CONTAINER_PORT:$CONTAINER_PORT" \
-                "$IMAGE_URI"
-
-              ready=false
-
-              for attempt in $(seq 1 60); do
-                echo "Deployment readiness attempt ${attempt}/60"
-
-                if curl \
-                  --fail \
-                  --silent \
-                  --show-error \
-                  "http://127.0.0.1:${CONTAINER_PORT}/health/ready" \
-                  > /tmp/sf-crime-readiness.json; then
-                  ready=true
-                  break
-                fi
-
-                if ! docker inspect "$CONTAINER_NAME" > /dev/null 2>&1; then
-                  echo "Replacement container stopped unexpectedly."
-                  break
-                fi
-
-                sleep 2
-              done
-
-              if [ "$ready" != "true" ]; then
-                echo "Replacement container failed its readiness check."
-                docker logs "$CONTAINER_NAME" || true
-
-                docker rm \
-                  --force \
-                  "$CONTAINER_NAME" \
-                  2>/dev/null \
-                  || true
-
-                if [ -n "$OLD_IMAGE" ]; then
-                  echo "Rolling back to: $OLD_IMAGE"
-
-                  docker run \
-                    --detach \
-                    --restart unless-stopped \
-                    --name "$CONTAINER_NAME" \
-                    --publish "$CONTAINER_PORT:$CONTAINER_PORT" \
-                    "$OLD_IMAGE"
-                else
-                  echo "No previous container image is available for rollback."
-                fi
-
-                exit 1
-              fi
-
-              echo "Readiness response:"
-              cat /tmp/sf-crime-readiness.json
-
-              echo "Running model information smoke test."
-              curl \
-                --fail \
-                --silent \
-                --show-error \
-                "http://127.0.0.1:${CONTAINER_PORT}/model/info"
-
-              echo
-              echo "Deployment completed successfully."
-
-              docker image prune --force
-              """
-          ).strip()
-
-          image_uri = os.environ["IMAGE_URI"]
-
-          replacements = {
-              "__AWS_REGION__": os.environ["AWS_REGION"],
-              "__IMAGE_URI__": image_uri,
-              "__ECR_REGISTRY__": image_uri.split("/", maxsplit=1)[0],
-              "__CONTAINER_NAME__": os.environ["CONTAINER_NAME"],
-              "__CONTAINER_PORT__": os.environ["CONTAINER_PORT"],
-          }
-
-          for placeholder, value in replacements.items():
-              script = script.replace(
-                  placeholder,
-                  value,
-              )
+          commands = [
+              (
+                  "echo "
+                  f"'{encoded_script}' "
+                  "| base64 --decode "
+                  "> /tmp/deploy-sf-crime.sh"
+              ),
+              "chmod 700 /tmp/deploy-sf-crime.sh",
+              "/tmp/deploy-sf-crime.sh",
+              "rm -f /tmp/deploy-sf-crime.sh",
+          ]
 
           parameters = {
-              "commands": [script],
+              "commands": commands,
               "executionTimeout": ["900"],
           }
 
@@ -581,7 +491,7 @@ jobs:
           COMMAND_ID: ${{ steps.send-deployment.outputs.command-id }}
         run: |
           if [ -z "${COMMAND_ID:-}" ]; then
-            echo "No SSM command was created."
+            echo "No SSM deployment command was created."
             exit 0
           fi
 
@@ -591,6 +501,7 @@ jobs:
             --instance-id "$EC2_INSTANCE_ID" \
             --query "{
               Status:Status,
+              ResponseCode:ResponseCode,
               StandardOutput:StandardOutputContent,
               StandardError:StandardErrorContent
             }" \
@@ -605,17 +516,24 @@ jobs:
               --region "$AWS_REGION" \
               --instance-ids "$EC2_INSTANCE_ID" \
               --document-name "AWS-RunShellScript" \
-              --comment "Verify SF Crime deployment" \
+              --comment "Verify SF Crime deployment ${IMAGE_TAG}" \
+              --timeout-seconds 300 \
               --parameters 'commands=[
-                "docker ps --filter name=sf-crime-api",
-                "curl --fail --silent --show-error http://127.0.0.1:8000/health/live",
-                "curl --fail --silent --show-error http://127.0.0.1:8000/health/ready"
+                "set -euo pipefail",
+                "docker inspect --format={{.Config.Image}} sf-crime-api",
+                "docker inspect --format={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} sf-crime-api",
+                "curl --connect-timeout 3 --max-time 10 --fail --silent --show-error http://127.0.0.1:8000/health/live",
+                "curl --connect-timeout 3 --max-time 10 --fail --silent --show-error http://127.0.0.1:8000/health/ready",
+                "curl --connect-timeout 3 --max-time 10 --fail --silent --show-error http://127.0.0.1:8000/model/info"
               ]' \
               --query "Command.CommandId" \
               --output text
           )"
 
-          for attempt in $(seq 1 30); do
+          echo "Verification command ID: $VERIFY_COMMAND_ID"
+          terminal_status=""
+
+          for attempt in $(seq 1 60); do
             status="$(
               aws ssm get-command-invocation \
                 --region "$AWS_REGION" \
@@ -627,27 +545,75 @@ jobs:
                 || true
             )"
 
-            echo "Verification attempt ${attempt}/30: ${status:-pending}"
-
-            if [ "$status" = "Success" ]; then
-              aws ssm get-command-invocation \
-                --region "$AWS_REGION" \
-                --command-id "$VERIFY_COMMAND_ID" \
-                --instance-id "$EC2_INSTANCE_ID" \
-                --query "StandardOutputContent" \
-                --output text
-
-              exit 0
-            fi
+            echo "Verification attempt ${attempt}/60: ${status:-pending}"
 
             case "$status" in
-              Failed|Cancelled|TimedOut|Cancelling)
-                exit 1
+              Success|Failed|Cancelled|TimedOut|Cancelling)
+                terminal_status="$status"
+                break
                 ;;
             esac
 
             sleep 2
           done
 
-          echo "Deployment verification timed out."
-          exit 1
+          aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --command-id "$VERIFY_COMMAND_ID" \
+            --instance-id "$EC2_INSTANCE_ID" \
+            --query "{
+              Status:Status,
+              ResponseCode:ResponseCode,
+              StandardOutput:StandardOutputContent,
+              StandardError:StandardErrorContent
+            }" \
+            --output json \
+            || true
+
+          if [ "$terminal_status" != "Success" ]; then
+            echo "Post-deployment verification failed."
+            exit 1
+          fi
+
+      - name: Verify public HTTPS service
+        if: ${{ success() }}
+        env:
+          PRODUCTION_API_URL: ${{ vars.PRODUCTION_API_URL }}
+        run: |
+          if [ -z "$PRODUCTION_API_URL" ]; then
+            echo "Repository variable PRODUCTION_API_URL is not configured."
+            exit 1
+          fi
+
+          echo "Testing public production endpoint: $PRODUCTION_API_URL"
+
+          curl \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --fail \
+            --silent \
+            --show-error \
+            "${PRODUCTION_API_URL}/health/live"
+
+          echo
+
+          curl \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --fail \
+            --silent \
+            --show-error \
+            "${PRODUCTION_API_URL}/health/ready"
+
+          echo
+
+          curl \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --fail \
+            --silent \
+            --show-error \
+            "${PRODUCTION_API_URL}/model/info"
+
+          echo
+          echo "Public HTTPS deployment verified."

@@ -62,3 +62,7 @@ logs/*
 *_review.txt
 *_bundle.txt
 *_code_review.zip
+
+artifacts/models/*
+!artifacts/models/.gitkeep
+!artifacts/models/*_metadata.json
