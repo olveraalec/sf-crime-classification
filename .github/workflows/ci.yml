@@ -521,7 +521,7 @@ jobs:
               --parameters 'commands=[
                 "set -euo pipefail",
                 "docker inspect --format={{.Config.Image}} sf-crime-api",
-                "docker inspect --format={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} sf-crime-api",
+                "docker inspect --format={{.State.Health.Status}} sf-crime-api",
                 "curl --connect-timeout 3 --max-time 10 --fail --silent --show-error http://127.0.0.1:8000/health/live",
                 "curl --connect-timeout 3 --max-time 10 --fail --silent --show-error http://127.0.0.1:8000/health/ready",
                 "curl --connect-timeout 3 --max-time 10 --fail --silent --show-error http://127.0.0.1:8000/model/info"
