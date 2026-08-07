@@ -1,1234 +1,1561 @@
 # San Francisco Crime Classification
-### Machine Learning Pipeline for Multi-Class Crime Prediction Using Logistic Regression, Random Forest, and XGBoost
 
-![Python](https://img.shields.io/badge/Python-3.11-blue)
-![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-ML-orange)
-![XGBoost](https://img.shields.io/badge/XGBoost-Gradient%20Boosting-green)
-![DuckDB](https://img.shields.io/badge/DuckDB-SQL-yellow)
-![Tableau](https://img.shields.io/badge/Tableau-Dashboard-blue)
-![License](https://img.shields.io/badge/License-MIT-lightgrey)
+An end-to-end machine learning system for predicting San Francisco crime categories from temporal, geographic, district, and address information.
+
+The project began as an academic comparison of Logistic Regression and Naive Bayes and was progressively rebuilt into a production-oriented ML system incorporating:
+
+- Reproducible experiment infrastructure
+- Temporal cross-validation
+- Logistic Regression
+- Naive Bayes
+- Random Forest
+- XGBoost optimization
+- Model calibration and evaluation
+- SHAP explainability
+- DuckDB-based analytical storage
+- Interactive Tableau dashboards
+- Modular Python architecture
+- FastAPI inference services
+- Unit and integration testing
+- Structured logging and prediction auditing
+- Docker containerization
+- Amazon ECR image storage
+- Amazon EC2 deployment
+- AWS Systems Manager deployment orchestration
+- Nginx reverse proxying
+- HTTPS
+- GitHub Actions CI/CD
+- Immutable production image deployment
+
+The final production model is an optimized XGBoost classifier trained using temporal cross-validation and evaluated against a completely frozen test set.
+
+Version 3 extends the modeling system developed in Version 2 into a deployable ML service with automated testing, containerization, cloud infrastructure, health monitoring, and CI/CD.
+
+---
+
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Project Evolution](#project-evolution)
+- [Dataset](#dataset)
+- [Problem Definition](#problem-definition)
+- [System Architecture](#system-architecture)
+- [Version 2: Modeling and Experimentation](#version-2-modeling-and-experimentation)
+- [Feature Engineering](#feature-engineering)
+- [Experiment Framework](#experiment-framework)
+- [Model Development](#model-development)
+- [Final XGBoost Model](#final-xgboost-model)
+- [Model Evaluation](#model-evaluation)
+- [Explainability](#explainability)
+- [DuckDB Data Layer](#duckdb-data-layer)
+- [Tableau Dashboards](#tableau-dashboards)
+- [Version 3: Production ML Engineering](#version-3-production-ml-engineering)
+- [FastAPI Inference Service](#fastapi-inference-service)
+- [API Endpoints](#api-endpoints)
+- [Production Health Checks](#production-health-checks)
+- [Testing Strategy](#testing-strategy)
+- [Structured Logging and Prediction Auditing](#structured-logging-and-prediction-auditing)
+- [Docker Containerization](#docker-containerization)
+- [AWS Deployment Architecture](#aws-deployment-architecture)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [Immutable Production Images](#immutable-production-images)
+- [Production Deployment Verification](#production-deployment-verification)
+- [Repository Structure](#repository-structure)
+- [Local Development](#local-development)
+- [Technology Stack](#technology-stack)
+- [Engineering Lessons](#engineering-lessons)
+- [Version 4 Roadmap](#version-4-roadmap)
+- [Author](#author)
 
 ---
 
 # Project Overview
 
-This project develops a complete end-to-end machine learning pipeline for multi-class crime classification using the San Francisco Crime Classification dataset.
+The objective of this project is to predict the category of a reported San Francisco crime using information available at incident time.
 
-Rather than treating the project as a single notebook, Version 2 restructures the workflow into a modular, reproducible machine learning project that separates data engineering, feature engineering, experimentation, model training, evaluation, visualization, and reporting.
+The project intentionally evolved through several stages.
 
-The primary objective is to predict crime categories from temporal and geographic information while systematically evaluating increasingly sophisticated machine learning models.
+The original implementation focused primarily on statistical modeling. Version 2 rebuilt the project around reproducible experimentation, richer feature engineering, stronger validation, tree-based models, model explainability, analytical storage, and visualization.
 
-The project evolves through several stages:
+Version 3 then addressed a different question:
 
-- Exploratory data analysis
-- Feature engineering
-- SQL data preparation
-- Temporal validation
+> How do you turn a trained machine learning model into a reliable, testable, deployable software service?
+
+The resulting repository therefore covers much of the ML lifecycle:
+
+```text
+Raw Data
+   │
+   ▼
+DuckDB / Data Preparation
+   │
+   ▼
+Feature Engineering
+   │
+   ▼
+Experiment Framework
+   │
+   ├── Logistic Regression
+   ├── Naive Bayes
+   ├── Random Forest
+   └── XGBoost
+          │
+          ▼
+Temporal Cross-Validation
+          │
+          ▼
+Frozen Test Evaluation
+          │
+          ▼
+Model Artifact + Metadata
+          │
+          ▼
+FastAPI Inference Service
+          │
+          ▼
+Docker Container
+          │
+          ▼
+Amazon ECR
+          │
+          ▼
+Amazon EC2
+          │
+          ▼
+Nginx / HTTPS
+          │
+          ▼
+Production API
+```
+
+The project emphasizes both **model quality** and **software reliability**.
+
+---
+
+# Project Evolution
+
+## Version 1 — Academic Baseline
+
+The original project was developed as a classification analysis comparing:
+
 - Logistic Regression
-- Naive Bayes
-- Random Forest
+- Multinomial Naive Bayes
+
+Initial feature engineering included:
+
+- Date/time decomposition
+- Police district information
+- Address information
+- Geographic coordinates
+- K-means geographic clusters
+- Cyclical time encodings
+
+The primary evaluation metric was multiclass log loss.
+
+Version 1 established the modeling problem but remained primarily notebook-driven.
+
+---
+
+## Version 2 — Reproducible ML System
+
+Version 2 rebuilt the project around a modular experiment framework.
+
+Major additions included:
+
+- Modular Python source code
+- Configuration-driven experiments
+- Reproducible experiment tracking
+- Temporal cross-validation
+- Expanded feature engineering
+- Logistic Regression optimization
+- Naive Bayes optimization
+- Random Forest experiments
 - XGBoost optimization
-- Explainability with SHAP
-- Interactive Tableau dashboards
+- Frozen test-set evaluation
+- Calibration analysis
+- SHAP explainability
+- DuckDB integration
+- Tableau dashboards
+- Saved experiment metadata and summaries
+- Final production model artifacts
 
-The final production model is an optimized XGBoost classifier trained using temporal cross-validation and evaluated on a completely frozen hold-out test period.
-
----
-
-# Repository Highlights (Version 2)
-
-Version 2 transforms the original academic notebook into a reproducible machine learning engineering project by introducing:
-
-✔ Modular Python architecture
-
-✔ DuckDB analytical database
-
-✔ SQL feature engineering pipeline
-
-✔ Config-driven experimentation
-
-✔ Automated experiment tracking
-
-✔ Temporal cross-validation
-
-✔ Frozen hold-out evaluation
-
-✔ XGBoost optimization
-
-✔ SHAP explainability
-
-✔ Interactive Tableau dashboards
-
-✔ Serialized preprocessing pipeline
-
-✔ Saved production model
-
-✔ Reproducible project structure
-
-The project is organized to resemble an industry-style machine learning workflow while remaining lightweight enough to run locally.
+Version 2 shifted the project from exploratory modeling toward a reproducible ML workflow.
 
 ---
 
-# Final Model Summary
+## Version 3 — API, Cloud Deployment, and CI/CD
 
-| Category | Final Choice |
-|------------|-------------|
-| Algorithm | XGBoost |
-| Validation Strategy | Temporal Cross Validation |
-| Final Evaluation | Frozen Hold-Out Test Set |
-| Explainability | SHAP Values |
-| Dashboarding | Tableau |
-| Database | DuckDB |
-| SQL Layer | Yes |
-| Feature Engineering | Modular Pipeline |
-| Model Serialization | Joblib |
-| Experiment Tracking | Automatic CSV Logging |
+Version 3 transforms the Version 2 modeling pipeline into a production-oriented inference system.
 
-The final XGBoost model consistently outperformed Logistic Regression, Naive Bayes, and Random Forest throughout experimentation while maintaining the strongest generalization performance on unseen temporal data.
+Major additions include:
+
+- FastAPI application architecture
+- Single and batch prediction APIs
+- Model metadata API
+- Liveness and readiness probes
+- Dependency injection
+- Centralized exception handling
+- Request middleware
+- Structured logging
+- Prediction auditing
+- Unit tests
+- Integration tests
+- Docker
+- Amazon ECR
+- Amazon EC2
+- AWS Systems Manager
+- Nginx
+- HTTPS
+- GitHub Actions CI/CD
+- Automated production deployment
+- Immutable image tags
+- Post-deployment verification
+
+The modeling logic from Version 2 remains the foundation of the production service rather than being replaced by a separate inference implementation.
+
+---
+
+# Dataset
+
+The project uses the San Francisco crime classification dataset.
+
+Each incident contains information including:
+
+- Timestamp
+- Police district
+- Address
+- Longitude
+- Latitude
+- Crime category
+
+The target is a multiclass categorical variable representing the reported crime type.
+
+Because the objective is probabilistic classification, models are evaluated primarily using **multiclass log loss** rather than simple classification accuracy.
+
+Log loss penalizes models not only for incorrect predictions but also for assigning excessive confidence to incorrect classes.
+
+This makes probability quality an important component of the modeling process.
+
+---
+
+# Problem Definition
+
+Given an incident containing:
+
+```text
+incident timestamp
+police district
+address
+longitude
+latitude
+```
+
+the system produces:
+
+```text
+predicted crime category
+predicted probability
+ranked alternative predictions
+inference latency
+```
+
+The production service supports both individual and batch inference.
+
+---
+
+# System Architecture
+
+The final Version 3 architecture separates modeling, inference, API behavior, and infrastructure responsibilities.
+
+```text
+                       GitHub
+                          │
+                          │ Push
+                          ▼
+                  GitHub Actions
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+             ▼                         ▼
+        Test / Validate           Docker Build
+                                       │
+                                       ▼
+                                  Amazon ECR
+                                       │
+                                       │ immutable image
+                                       ▼
+                              AWS Systems Manager
+                                       │
+                                       ▼
+                                  Amazon EC2
+                                       │
+                                       ▼
+                              Docker Container
+                                       │
+                                  127.0.0.1:8000
+                                       │
+                                       ▼
+                                     Nginx
+                                       │
+                                      HTTPS
+                                       │
+                                       ▼
+                                  Public API
+```
+
+The application itself is structured approximately as:
+
+```text
+HTTP Request
+     │
+     ▼
+FastAPI Route
+     │
+     ▼
+Request Validation
+     │
+     ▼
+Dependency Injection
+     │
+     ▼
+Inference Engine
+     │
+     ▼
+Feature Transformation
+     │
+     ▼
+XGBoost Model
+     │
+     ▼
+Probability Ranking
+     │
+     ├── Response
+     │
+     └── Prediction Audit
+```
+
+---
+
+# Version 2: Modeling and Experimentation
+
+## Feature Engineering
+
+Feature engineering was treated as an experimental question rather than assuming that additional features automatically improve model performance.
+
+Feature groups explored included:
+
+### Temporal Features
+
+Examples include:
+
+- Hour
+- Day
+- Month
+- Day of week
+- Weekend indicators
+- Cyclical time encodings
+
+Cyclical encoding allows periodic variables such as hour-of-day to preserve their circular structure.
+
+For example:
+
+```text
+23:00 and 00:00
+```
+
+should be represented as temporally close rather than numerically far apart.
+
+---
+
+### Geographic Features
+
+Geospatial experiments included:
+
+- Raw latitude and longitude
+- Geographic clustering
+- Cluster-distance features
+- Multiple cluster resolutions
+- Alternative geographic representations
+
+These experiments tested whether discretized or distance-based spatial representations improved predictive performance over raw coordinates.
+
+---
+
+### Address Features
+
+Address information was transformed into model-compatible features to capture patterns associated with specific location types and recurring crime environments.
+
+---
+
+### Interaction Features
+
+Selected feature interactions were evaluated to determine whether combinations of temporal, spatial, and categorical information added useful signal.
+
+Importantly, engineered features were retained based on empirical validation rather than complexity alone.
+
+---
+
+# Experiment Framework
+
+A major Version 2 objective was making experiments repeatable.
+
+Experiment configuration was separated from execution logic so that changes to:
+
+- Model type
+- Feature groups
+- Encoding strategy
+- Hyperparameters
+- Validation settings
+
+could be evaluated consistently.
+
+Experiment outputs are stored under:
+
+```text
+results/
+├── experiments/
+└── summaries/
+```
+
+Individual experiments produce machine-readable artifacts such as:
+
+```text
+*_folds.csv
+*_metadata.json
+*_summary.csv
+```
+
+This creates an auditable record of model development rather than relying on notebook output or manually recorded results.
+
+---
+
+# Model Development
+
+Several model families were evaluated.
+
+## Logistic Regression
+
+Logistic Regression provided a strong interpretable baseline and was used extensively during feature engineering.
+
+Experiments included:
+
+- Baseline feature sets
+- Address features
+- Cyclical features
+- Interaction features
+- Geographic representations
+- Regularization parameter sweeps
+- Convergence testing
+
+Because Logistic Regression responds predictably to feature changes, it was particularly useful for measuring whether engineered features actually contributed useful signal.
+
+---
+
+## Naive Bayes
+
+Multinomial Naive Bayes served as a computationally efficient probabilistic baseline.
+
+Experiments included:
+
+- Alpha sweeps
+- Feature selection variants
+- Model comparisons against Logistic Regression
+
+---
+
+## Random Forest
+
+Random Forest introduced nonlinear modeling capacity and allowed evaluation of tree-based relationships among geographic, temporal, and categorical predictors.
+
+Hyperparameter experiments explored tree depth, leaf size, and related model complexity controls.
+
+---
+
+## XGBoost
+
+XGBoost ultimately provided the strongest production candidate.
+
+Optimization included experiments across parameters such as:
+
+- Tree depth
+- Child-weight constraints
+- Learning rate
+- Number of trees
+- Subsampling
+- Column sampling
+- Gamma
+- L1 regularization
+- L2 regularization
+
+The final model was selected through validation performance rather than evaluation on the frozen test set.
+
+---
+
+# Final XGBoost Model
+
+The final production classifier is an optimized XGBoost model.
+
+The training process separates:
+
+```text
+Model Development
+        │
+        ▼
+Temporal Cross-Validation
+        │
+        ▼
+Hyperparameter Selection
+        │
+        ▼
+Final Training
+        │
+        ▼
+Frozen Test Evaluation
+```
+
+The frozen test set remains isolated during model development.
+
+This reduces the risk of indirectly tuning the system to its final evaluation data.
+
+The resulting model artifact is accompanied by metadata describing the trained production model.
+
+Production artifacts are stored under:
+
+```text
+artifacts/models/
+```
+
+with metadata and integrity information maintained alongside the model.
+
+---
+
+# Model Evaluation
+
+Evaluation extends beyond a single classification metric.
+
+The project includes analysis of:
+
+- Multiclass log loss
+- Per-class F1
+- Confusion matrices
+- Prediction confidence
+- Calibration
+- Reliability
+- Class-level performance
+
+Evaluation figures are stored under:
+
+```text
+figures/evaluation/
+```
+
+including outputs such as:
+
+```text
+xgboost_confidence_histogram.png
+xgboost_confusion_matrix_all_classes.png
+xgboost_confusion_matrix_top_classes.png
+xgboost_per_class_f1.png
+xgboost_reliability_diagram.png
+```
+
+This is particularly important for probabilistic models because a useful classifier should produce meaningful probability estimates rather than simply maximize top-1 accuracy.
+
+---
+
+# Explainability
+
+SHAP analysis is used to investigate the final XGBoost model.
+
+Explainability outputs include:
+
+- Global feature importance
+- Gain-based importance
+- Weight-based importance
+- Class-specific SHAP analysis
+
+Example artifacts include:
+
+```text
+figures/explainability/
+├── shap_global_bar.png
+├── shap_larceny_theft.png
+├── xgb_importance_cover.png
+├── xgb_importance_gain.png
+└── xgb_importance_weight.png
+```
+
+These analyses provide insight into both overall model behavior and individual crime-category decision patterns.
+
+---
+
+# DuckDB Data Layer
+
+Version 2 introduced DuckDB as the project's analytical database.
+
+The database layer separates raw data from cleaned and model-ready representations.
+
+SQL scripts include:
+
+```text
+sql/
+├── 01_create_raw_table.sql
+├── 02_create_clean_view.sql
+├── 03_create_feature_view.sql
+└── 04_create_modeling_view.sql
+```
+
+This provides a reproducible progression from raw source data to modeling-ready data.
+
+DuckDB was selected because it provides SQL-based analytical workflows while remaining lightweight and easily reproducible locally.
+
+The database is stored under:
+
+```text
+data/database/
+```
+
+---
+
+# Tableau Dashboards
+
+Version 2 also includes interactive Tableau visualization.
+
+The dashboard covers three major areas:
+
+### Exploratory Analysis
+
+Geographic, temporal, and categorical patterns in San Francisco crime.
+
+### Final Model Evaluation
+
+Performance and behavior of the selected production model.
+
+### Experiment Tracking
+
+Comparison of model experiments and tuning results.
+
+Dashboard images are available under:
+
+```text
+figures/tableau/
+```
+
+and the Tableau workbook is stored under:
+
+```text
+tableau/
+```
+
+---
+
+# Version 3: Production ML Engineering
+
+Version 3 focuses on the engineering required to expose the final model as a reliable service.
+
+The production architecture separates:
+
+- API routes
+- Request/response schemas
+- Inference
+- Artifact loading
+- Configuration
+- Logging
+- Prediction auditing
+- Metrics
+- Exception handling
+
+rather than placing all production logic inside a single application file.
+
+---
+
+# FastAPI Inference Service
+
+FastAPI provides the HTTP interface to the trained model.
+
+API code is organized under:
+
+```text
+src/api/
+├── app.py
+├── dependencies.py
+├── exception_handlers.py
+├── middleware.py
+├── schemas.py
+└── routes/
+```
+
+This separates transport-layer concerns from the underlying inference engine.
+
+The API includes:
+
+- Typed request schemas
+- Typed response schemas
+- Dependency injection
+- Centralized exception handling
+- Request middleware
+- Automatic OpenAPI documentation
+- Liveness/readiness endpoints
+- Single prediction
+- Batch prediction
+- Model metadata
+
+---
+
+# API Endpoints
+
+## Health
+
+```http
+GET /health
+```
+
+Maintains the original Version 3 health contract for backward compatibility.
+
+---
+
+## Liveness
+
+```http
+GET /health/live
+```
+
+Confirms that the FastAPI process is alive and capable of receiving requests.
+
+Liveness intentionally does **not** require all model dependencies to be healthy.
+
+---
+
+## Readiness
+
+```http
+GET /health/ready
+```
+
+Determines whether the application is ready to receive prediction traffic.
+
+Readiness validates critical dependencies including:
+
+```text
+inference_engine
+metrics_registry
+prediction_auditor
+settings
+model_metadata
+```
+
+If required components are unavailable, the endpoint returns a non-ready response rather than falsely reporting the service as healthy.
+
+---
+
+## Model Information
+
+```http
+GET /model/info
+```
+
+Returns selected metadata for the currently loaded production model, including information such as:
+
+- Model name
+- Algorithm
+- Training timestamp
+- Number of classes
+- Raw feature columns
+- Transformed feature columns
+- Frozen test log loss
+
+---
+
+## Single Prediction
+
+```http
+POST /predictions
+```
+
+Runs inference for one crime incident.
+
+Conceptually:
+
+```json
+{
+  "incident": {
+    "incident_timestamp": "...",
+    "pd_district": "...",
+    "address": "...",
+    "longitude": 0.0,
+    "latitude": 0.0
+  },
+  "top_k": 3
+}
+```
+
+The response includes:
+
+```text
+predicted_class
+predicted_probability
+top_predictions
+inference_time_ms
+```
+
+---
+
+## Batch Prediction
+
+```http
+POST /predictions/batch
+```
+
+Runs vectorized inference across multiple incidents.
+
+Batch inference avoids requiring clients to issue an independent HTTP request for every prediction.
+
+---
+
+## Interactive Documentation
+
+When the API is running, FastAPI automatically exposes interactive OpenAPI documentation through Swagger UI.
+
+![Production Swagger Documentation](README_images/version_3/production-swagger-docs.png)
+
+---
+
+# Production Health Checks
+
+Production health monitoring distinguishes between **liveness** and **readiness**.
+
+This distinction is important.
+
+A server process may technically be running while still being unable to produce valid predictions.
+
+For example:
+
+```text
+FastAPI process running
+        │
+        ├── Model loaded? ─────────────┐
+        ├── Metadata valid?            │
+        ├── Metrics registry ready?    ├── Readiness
+        ├── Auditor ready?             │
+        └── Settings loaded? ──────────┘
+```
+
+`/health/live` answers:
+
+> Is the process alive?
+
+`/health/ready` answers:
+
+> Can this instance safely receive production inference traffic?
+
+A production readiness response is shown below.
+
+![Production Readiness](README_images/version_3/production-readiness.png)
+
+---
+
+# Testing Strategy
+
+Version 3 introduces a layered testing strategy.
+
+Tests are organized into:
+
+```text
+tests/
+├── api/
+├── integration/
+└── unit/
+```
+
+## Unit Tests
+
+Unit tests cover individual components such as:
+
+- Artifact loading
+- Configuration
+- Feature engineering
+- Incident adaptation
+- Inference
+- Metrics
+- Model behavior
+- Pipeline construction
+- Prediction auditing
+- Prediction service behavior
+- Request context
+- Structured logging
+- Final model training
+- Transformers
+
+---
+
+## API Tests
+
+API tests validate:
+
+- Application construction
+- Health routes
+- Metrics dependencies
+- Prediction auditing dependencies
+- Settings dependencies
+
+---
+
+## Integration Tests
+
+Integration tests verify larger system boundaries, including:
+
+- Final training pipeline
+- Inference pipeline
+
+This layered structure allows failures to be localized more effectively than relying only on end-to-end tests.
+
+---
+
+# Structured Logging and Prediction Auditing
+
+Production systems need observability beyond `print()` statements.
+
+Version 3 includes structured logging for important application and inference events.
+
+The application also includes a dedicated prediction auditor.
+
+Prediction audit events capture information such as:
+
+- Model identity
+- Predicted classes
+- Prediction confidence
+- Inference latency
+- Prediction failures
+- Error types
+
+This creates a foundation for future production monitoring without coupling monitoring logic directly to the model.
+
+---
+
+# Docker Containerization
+
+The API is packaged into a Docker image so the same application environment can run locally, in CI, and on EC2.
+
+The container exposes the FastAPI application internally while production traffic is routed through Nginx.
+
+Conceptually:
+
+```text
+Internet
+   │
+   ▼
+HTTPS
+   │
+   ▼
+Nginx
+   │
+   ▼
+127.0.0.1:8000
+   │
+   ▼
+Docker Container
+   │
+   ▼
+FastAPI
+   │
+   ▼
+Inference Engine
+```
+
+The API container itself is not directly exposed as the public production interface.
+
+---
+
+# AWS Deployment Architecture
+
+Version 3 uses several AWS services with distinct responsibilities.
+
+## Amazon ECR
+
+Amazon Elastic Container Registry stores production Docker images.
+
+Images are built by GitHub Actions and pushed to ECR before deployment.
+
+---
+
+## Amazon EC2
+
+EC2 hosts the production Docker container.
+
+The instance runs:
+
+- Docker
+- Production API container
+- Nginx
+- AWS Systems Manager agent
+
+---
+
+## AWS Systems Manager
+
+GitHub Actions uses AWS Systems Manager to execute deployment commands on EC2.
+
+This avoids building the deployment pipeline around direct inbound SSH access.
+
+The deployment process can therefore remotely:
+
+- Authenticate with ECR
+- Pull the selected image
+- Replace the running container
+- Check container readiness
+- Validate the deployed image
+- Reload Nginx when appropriate
+- Perform post-deployment verification
+
+---
+
+## Nginx
+
+Nginx acts as the public reverse proxy.
+
+External HTTPS requests are forwarded to the FastAPI container running locally on the EC2 host.
+
+This keeps the application container behind the reverse proxy rather than directly exposing its application port publicly.
+
+---
+
+## HTTPS
+
+The public service is exposed through HTTPS.
+
+TLS termination occurs at the Nginx layer before requests are proxied to the local FastAPI service.
+
+---
+
+# CI/CD Pipeline
+
+GitHub Actions automates the path from source code to production deployment.
+
+The pipeline performs the major stages:
+
+```text
+Push
+  │
+  ▼
+GitHub Actions
+  │
+  ├── Install dependencies
+  ├── Run validation
+  ├── Run tests
+  │
+  ▼
+Build Docker Image
+  │
+  ▼
+Tag Immutable Image
+  │
+  ▼
+Authenticate to Amazon ECR
+  │
+  ▼
+Push Image
+  │
+  ▼
+Deploy through AWS Systems Manager
+  │
+  ▼
+Wait for Readiness
+  │
+  ▼
+Verify Deployed Container
+  │
+  ▼
+Verify Public HTTPS Service
+```
+
+A successful production workflow is shown below.
+
+![GitHub Actions Success](README_images/version_3/github-actions-success.png)
+
+---
+
+# Immutable Production Images
+
+Production deployment uses immutable Docker image identifiers rather than relying only on a mutable tag such as:
+
+```text
+latest
+```
+
+Each production image can therefore be tied to a specific build/revision.
+
+This improves:
+
+- Traceability
+- Reproducibility
+- Deployment verification
+- Debugging
+- Rollback capability
+
+The deployment workflow verifies the image running on EC2 after deployment rather than assuming that a successful pull automatically means the intended container is active.
+
+Example ECR production images:
+
+![Immutable ECR Images](README_images/version_3/ecr-immutable-images.png)
+
+---
+
+# Production Deployment Verification
+
+A successful deployment is not considered complete merely because Docker starts.
+
+The deployment pipeline verifies several layers.
+
+```text
+Image exists in ECR
+        │
+        ▼
+Container starts
+        │
+        ▼
+Container becomes ready
+        │
+        ▼
+Expected image is running
+        │
+        ▼
+Internal health checks pass
+        │
+        ▼
+Nginx configuration valid
+        │
+        ▼
+Public HTTPS service responds
+```
+
+This catches cases where infrastructure appears operational but the ML application itself is not actually ready.
+
+Successful EC2 deployment output:
+
+![EC2 Deployment Success](README_images/version_3/ec2-deployment-success.png)
 
 ---
 
 # Repository Structure
 
+The final repository separates data, experiments, production code, infrastructure, tests, and presentation artifacts.
+
 ```text
 sf-crime-classification/
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
+├── artifacts/
+│   └── models/
+│       ├── SHA256SUMS
+│       └── xgboost_final_metadata.json
 │
 ├── config/
 │   └── config.yaml
 │
 ├── data/
-│   ├── raw/
 │   ├── database/
+│   │   └── sf_crime.duckdb
 │   ├── processed/
+│   ├── raw/
 │   └── tableau/
 │
 ├── figures/
 │   ├── eda/
-│   ├── models/
 │   ├── evaluation/
 │   ├── explainability/
-│   └── tableau/
+│   ├── features/
+│   ├── models/
+│   ├── tableau/
+│   └── validation/
 │
 ├── logs/
 │
 ├── models/
 │
 ├── notebooks/
+│   ├── 01_original_sf_crime_classification.ipynb
+│   └── sf_crime_classification.ipynb
+│
+├── README_images/
+│   └── version_3/
+│       ├── ec2-deployment-success.png
+│       ├── ecr-immutable-images.png
+│       ├── github-actions-success.png
+│       ├── production-readiness.png
+│       └── production-swagger-docs.png
 │
 ├── report/
+│   └── sf_crime_classification_report.pdf
 │
 ├── reports/
+│
+├── results/
 │   ├── experiments/
 │   └── summaries/
 │
+├── scripts/
+│   └── deploy_ec2.sh
+│
 ├── sql/
+│   ├── 01_create_raw_table.sql
+│   ├── 02_create_clean_view.sql
+│   ├── 03_create_feature_view.sql
+│   └── 04_create_modeling_view.sql
 │
 ├── src/
+│   ├── api/
+│   │   ├── routes/
+│   │   ├── app.py
+│   │   ├── dependencies.py
+│   │   ├── exception_handlers.py
+│   │   ├── middleware.py
+│   │   └── schemas.py
+│   │
+│   ├── artifact_contract.py
+│   ├── artifact_loader.py
+│   ├── build_database.py
+│   ├── config.py
+│   ├── data_loader.py
+│   ├── evaluate_final_model.py
+│   ├── evaluation.py
+│   ├── experiment_config.py
+│   ├── experiment_runner.py
+│   ├── experiment_suites.py
+│   ├── experiment_tracking.py
+│   ├── explainability.py
+│   ├── features.py
+│   ├── incident_adapter.py
+│   ├── inference_engine.py
+│   ├── logger.py
+│   ├── metrics.py
+│   ├── models.py
+│   ├── pipeline_builder.py
+│   ├── prediction_auditor.py
+│   ├── prediction_service.py
+│   ├── request_context.py
+│   ├── structured_logging.py
+│   ├── train_final_model.py
+│   ├── transformers.py
+│   └── validation.py
 │
 ├── tableau/
+│   └── sf_crime_classification_version_2.twbx
 │
 ├── tests/
+│   ├── api/
+│   ├── integration/
+│   └── unit/
 │
+├── .dockerignore
+├── .gitignore
+├── Dockerfile
+├── pyproject.toml
 ├── README.md
 ├── requirements.txt
-└── pyproject.toml
+└── uv.lock
 ```
 
----
-
-# Project Workflow
-
-The overall machine learning workflow follows the pipeline below:
-
-```text
-Raw Dataset
-      │
-      ▼
-DuckDB Database
-      │
-      ▼
-SQL Views
-      │
-      ▼
-Feature Engineering
-      │
-      ▼
-Experiment Tracking
-      │
-      ▼
-Model Selection
-      │
-      ▼
-Final XGBoost Training
-      │
-      ▼
-Frozen Test Evaluation
-      │
-      ▼
-Explainability
-      │
-      ▼
-Interactive Dashboards
-```
-
-Each stage of the pipeline is modularized into dedicated source files to maximize reproducibility and simplify future experimentation.
-
-# Dataset
-
-This project uses the **San Francisco Crime Classification** dataset originally released through Kaggle.
-
-The dataset contains nearly 880,000 historical crime incidents reported by the San Francisco Police Department and includes temporal, geographic, and categorical information for each event.
-
-Primary fields include:
-
-- Crime category (target variable)
-- Date and time
-- Police district
-- Geographic coordinates
-- Address
-- Resolution
-- Descript
-
-During preprocessing, the raw data are transformed into engineered spatial and temporal features suitable for machine learning.
+Generated caches, local virtual environments, temporary review artifacts, and other non-source files are intentionally excluded from the repository.
 
 ---
 
-# Large File Notice
+# Local Development
 
-Several large artifacts are intentionally excluded from this repository.
-
-GitHub is intended to host source code rather than large datasets or serialized machine learning artifacts. To keep the repository lightweight and reproducible, the following files are omitted:
-
-| Omitted File | Reason |
-|--------------|--------|
-| `data/raw/san_francisco_crime_train.csv` | Original Kaggle dataset (~122 MB) |
-| `data/database/sf_crime.duckdb` | Generated analytical database |
-| `models/xgboost_final_model.joblib` | Serialized production model (~170 MB) |
-
-These files can be recreated locally by following the instructions below.
-
----
-
-# Downloading the Dataset
-
-Download the original dataset from Kaggle:
-
-https://www.kaggle.com/c/sf-crime/data
-
-After downloading, place the training file here:
-
-```text
-data/
-└── raw/
-    └── san_francisco_crime_train.csv
-```
-
-No additional preprocessing is required before running the pipeline.
-
----
-
-# Installation
-
-Clone the repository:
+## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/olveraalec/sf-crime-classification.git
-
+git clone <repository-url>
 cd sf-crime-classification
 ```
 
-Create a virtual environment:
+---
+
+## 2. Create a Virtual Environment
+
+Example:
 
 ```bash
 python -m venv .venv
-```
-
-Activate the environment.
-
-macOS / Linux
-
-```bash
 source .venv/bin/activate
 ```
 
-Windows
+---
 
-```bash
-.venv\Scripts\activate
-```
+## 3. Install Dependencies
 
-Install project dependencies:
+Using the project requirements:
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-# Rebuilding the DuckDB Database
-
-After downloading the dataset, build the analytical database.
+or, when using `uv`:
 
 ```bash
-python -m src.build_database
+uv sync
 ```
-
-This creates
-
-```text
-data/database/sf_crime.duckdb
-```
-
-The DuckDB database is used throughout the project for SQL-based feature engineering and reproducible analytical queries.
 
 ---
 
-# Running the Final Pipeline
-
-Train the final production model:
+## 4. Run Tests
 
 ```bash
-python -m src.train_final_model
+pytest
 ```
 
-This script automatically performs the following steps:
-
-1. Loads the DuckDB database
-
-2. Constructs engineered features
-
-3. Applies temporal feature transformations
-
-4. Generates interaction features
-
-5. Applies geographic clustering
-
-6. Builds the preprocessing pipeline
-
-7. Trains the optimized XGBoost model
-
-8. Saves the trained artifacts
-
-The following artifacts are generated automatically:
+Tests are separated into unit, API, and integration layers under:
 
 ```text
-models/
-
-├── xgboost_final_model.joblib
-├── xgboost_final_transformer.joblib
-├── xgboost_label_encoder.joblib
-└── xgboost_final_metadata.json
+tests/
 ```
 
 ---
 
-# Experiment Outputs
+## 5. Run the API Locally
 
-During experimentation, the pipeline automatically records model performance and metadata.
+The FastAPI application can be started with an ASGI server such as Uvicorn using the application object defined under `src/api/`.
 
-Generated experiment summaries include:
-
-```text
-results/
-
-├── experiments/
-│
-└── summaries/
-```
-
-Each experiment stores:
-
-- Hyperparameters
-- Validation metrics
-- Fold-by-fold performance
-- Metadata
-- Training time
-
-These outputs make every experiment reproducible and simplify model comparison throughout development.
+Once running locally, the service exposes health, model metadata, prediction, and interactive API documentation routes.
 
 ---
 
-# Tableau Dashboard Files
-
-Version 2 introduces interactive Tableau dashboards summarizing the complete modeling workflow.
-
-The repository includes:
-
-```text
-tableau/
-
-└── sf_crime_classification_version_2.twbx
-```
-
-Supporting dashboard data are exported to:
-
-```text
-data/tableau/
-```
-
-Dashboard screenshots used throughout this README are located in:
-
-```text
-figures/tableau/
-```
-
----
-
-# Reproducibility
-
-Every stage of the project is deterministic and reproducible.
-
-After downloading the dataset, running
+## 6. Build the Docker Image
 
 ```bash
-python -m src.build_database
-
-python -m src.train_final_model
+docker build -t sf-crime-classification-api .
 ```
 
-will regenerate:
-
-- DuckDB database
-- Engineered features
-- Final preprocessing pipeline
-- Trained XGBoost model
-- Model metadata
-- Evaluation summaries
-- Experiment tracking outputs
-
-without requiring any manual intervention.
-
-# Exploratory Data Analysis
-
-Before developing predictive models, the dataset was analyzed to better understand the temporal, spatial, and categorical structure of crime incidents throughout San Francisco.
-
-The exploratory analysis served two primary purposes:
-
-1. Identify meaningful feature engineering opportunities.
-2. Understand long-term temporal and geographic crime patterns.
-
-Rather than immediately fitting machine learning models, the project first examined when and where crimes occurred and how different crime categories behaved over time.
+The resulting container packages the application and its runtime dependencies into a reproducible deployment unit.
 
 ---
 
-# Geographic Crime Density
-
-Understanding the spatial distribution of crime is one of the most important components of this dataset.
-
-The figure below illustrates regions with consistently high crime density across San Francisco.
-
-![Crime Density](figures/eda/crime_density_contour_map.png)
-
-Several concentrated crime hotspots become immediately visible.
-
-These observations motivated later engineering decisions, including:
-
-- geographic clustering
-- latitude and longitude feature utilization
-- police district encoding
-- neighborhood interaction features
-
----
-
-# Crime Category Distribution by Neighborhood
-
-Different neighborhoods exhibit very different crime compositions.
-
-Rather than treating all regions identically, this visualization demonstrates that certain categories become much more common within specific geographic areas.
-
-![Neighborhood Crime Distribution](figures/eda/crime_category_distribution_by_neighborhood.png)
-
-This provided additional motivation for incorporating spatial information directly into the machine learning pipeline.
-
----
-
-# Overall Crime Trends
-
-Understanding aggregate crime frequency over time provides useful context before examining individual crime categories.
-
-## Hourly Crime Volume
-
-![Overall Hourly](figures/eda/overall_hourly_crime_trend.png)
-
-Crime frequency varies substantially throughout the day, indicating that hour-of-day is likely to be an informative predictor.
-
----
-
-## Daily Crime Volume
-
-![Overall Daily](figures/eda/overall_daily_crime_trend.png)
-
-Certain days consistently experience higher crime activity than others, motivating categorical encoding of weekday information.
-
----
-
-## Weekly Crime Volume
-
-![Overall Weekly](figures/eda/overall_weekly_crime_trend.png)
-
-Weekly patterns reveal recurring fluctuations that support temporal feature engineering.
-
----
-
-## Monthly Crime Volume
-
-![Overall Monthly](figures/eda/overall_monthly_crime_trend.png)
-
-Monthly seasonality suggests modest long-term variation across the calendar year.
-
----
-
-## Yearly Crime Volume
-
-![Overall Yearly](figures/eda/overall_yearly_crime_trend.png)
-
-Long-term crime frequency remains relatively stable across the observation period, making temporal validation more appropriate than random sampling.
-
----
-
-# Crime Trends by Category
-
-Aggregate crime counts provide useful context, but each crime category exhibits unique temporal behavior.
-
-Understanding these differences guided feature engineering decisions throughout model development.
-
----
-
-## Hourly Crime Patterns
-
-![Hourly Category Trends](figures/eda/hourly_crime_trends_by_category.png)
-
-Certain crime categories display highly localized hourly peaks while others remain relatively stable throughout the day.
-
-This supports the inclusion of:
-
-- hour
-- cyclical hour encoding
-- hour interaction features
-
----
-
-## Daily Crime Patterns
-
-![Daily Category Trends](figures/eda/daily_crime_trends_by_category.png)
-
-Several crime categories demonstrate strong weekday preferences, suggesting that weekday carries predictive information beyond simple chronological ordering.
-
----
-
-## Weekly Crime Patterns
-
-![Weekly Category Trends](figures/eda/weekly_crime_trends_by_category.png)
-
-Weekly trends reinforce the importance of capturing recurring temporal cycles.
-
----
-
-## Monthly Crime Patterns
-
-![Monthly Category Trends](figures/eda/monthly_crime_trends_by_category.png)
-
-Although seasonal differences are smaller than hourly variation, certain crime categories exhibit noticeable monthly fluctuations.
-
----
-
-## Yearly Crime Patterns
-
-![Yearly Category Trends](figures/eda/yearly_crime_trends_by_category.png)
-
-Long-term stability indicates that model improvements are more likely to come from improved feature engineering than from adapting to large distribution shifts.
-
----
-
-# Feature Engineering Strategy
-
-The exploratory analysis directly motivated the project's feature engineering pipeline.
-
-Rather than relying solely on the original variables, several additional predictors were constructed.
-
-These include:
-
-- Hour of day
-- Day of week
-- Month
-- Weekend indicator
-- Cyclical hour encoding
-- Cyclical weekday encoding
-- Geographic clusters
-- Police district encoding
-- Address-derived features
-- Spatial interaction terms
-
-These engineered variables formed the foundation of all subsequent machine learning experiments.
-
----
-
-# Why Exploratory Analysis Matters
-
-Exploratory Data Analysis was not treated as a standalone visualization exercise.
-
-Instead, each visualization informed later engineering decisions.
-
-The progression followed a simple philosophy:
-
-```
-
-Raw Data
-
-↓
-
-Explore Patterns
-
-↓
-
-Engineer Better Features
-
-↓
-
-Train Better Models
-
-↓
-
-Evaluate Performance
-
-```
-
-This iterative workflow became the foundation for every modeling decision throughout the remainder of the project.
-
-# Model Development & Experimentation
-
-One of the primary goals of this project was not simply to build a high-performing classifier, but to understand how increasingly sophisticated machine learning models responded to feature engineering, hyperparameter optimization, and nonlinear representations.
-
-Rather than immediately selecting a complex model, development followed an iterative progression beginning with interpretable linear methods before advancing toward ensemble learning techniques.
-
-The overall modeling workflow followed the progression below:
-
-```text
-Logistic Regression
-        ↓
-Feature Engineering
-        ↓
-Naive Bayes Benchmark
-        ↓
-Random Forest
-        ↓
-XGBoost
-        ↓
-Final Model Selection
-```
-
-Each stage built upon observations from previous experiments, resulting in a systematic model development process rather than isolated hyperparameter searches.
-
----
-
-# Stage 1 — Logistic Regression
-
-Logistic Regression served as the baseline discriminative classifier.
-
-Although linear, it provided an interpretable foundation for evaluating the effectiveness of engineered spatial and temporal features.
-
-The initial pipeline included:
-
-- One-hot encoded categorical variables
-- Standardized continuous variables
-- Geographic clustering
-- Temporal feature extraction
-- Cyclical encodings
-- Interaction features
-
-The primary objective was to determine whether careful feature engineering could compensate for the model's linear decision boundary.
-
----
-
-## Geographic Cluster Optimization
-
-To capture localized crime behavior, latitude and longitude coordinates were grouped into geographic clusters.
-
-The number of clusters was treated as a tunable hyperparameter.
-
-![Geographic Cluster Sweep](figures/models/logistic_geo_cluster_sweep.png)
-
-The experiment demonstrated that moderate clustering improved validation performance while excessive clustering introduced unnecessary complexity.
-
-This experiment established geographic clustering as a permanent component of the modeling pipeline.
-
----
-
-## Feature Engineering Comparison
-
-Several engineered feature combinations were evaluated.
-
-Examples included:
-
-- Geographic interactions
-- District-hour interactions
-- District-day interactions
-- Combined interaction terms
-- Targeted nonlinear features
-
-![Feature Engineering Comparison](figures/features/logistic_feature_engineering_comparison.png)
-
-Although interaction terms improved predictive performance, the experiments also revealed diminishing returns as increasingly complex combinations were introduced.
-
-This observation reinforced the importance of carefully balancing model complexity against generalization.
-
----
-
-## Regularization Parameter Optimization
-
-The inverse regularization parameter (C) was tuned using temporal cross-validation.
-
-![Logistic Regression C Sweep](figures/models/logistic_c_parameter_sweep.png)
-
-Smaller values of C consistently produced stronger generalization performance, indicating that moderate regularization reduced overfitting without sacrificing predictive accuracy.
-
----
-
-## Logistic Regression Conclusions
-
-Key findings included:
-
-- Geographic information substantially improved predictive performance.
-- Temporal variables carried strong predictive signal.
-- Cyclical encodings consistently outperformed simple ordinal representations.
-- Interaction features produced measurable but diminishing improvements.
-- Linear models began reaching their representational limits despite extensive feature engineering.
-
-These observations motivated exploration of nonlinear models.
-
----
-
-# Stage 2 — Naive Bayes
-
-Naive Bayes served as a lightweight probabilistic benchmark.
-
-Although its conditional independence assumption is unrealistic for crime data, it provides an efficient baseline for comparison.
-
-The model utilized:
-
-- Temporal features
-- District information
-- Address-derived features
-
----
-
-## Alpha Parameter Sweep
-
-The smoothing parameter was optimized through grid search.
-
-![Naive Bayes Alpha Sweep](figures/models/naive_bayes_alpha_sweep.png)
-
-Performance remained relatively insensitive to alpha, suggesting that feature representation had a greater impact than smoothing.
-
----
-
-## Feature Set Comparison
-
-Several candidate feature subsets were evaluated.
-
-![Naive Bayes Feature Search](figures/models/naive_bayes_feature_set_search.png)
-
-Unlike Logistic Regression, additional engineered variables produced only modest improvements.
-
-This behavior is consistent with the simplifying assumptions underlying Naive Bayes.
-
----
-
-## Naive Bayes Conclusions
-
-Although Naive Bayes did not achieve the strongest predictive performance, it provided:
-
-- Extremely fast training
-- Strong interpretability
-- A valuable probabilistic benchmark
-
-The experiments also confirmed that more expressive nonlinear models would likely be required to capture the complex interactions present within the dataset.
-
----
-
-# Stage 3 — Random Forest
-
-The next stage introduced nonlinear ensemble learning.
-
-Random Forest removes the linear decision boundary imposed by Logistic Regression and automatically captures high-order feature interactions.
-
-The primary goals were:
-
-- Evaluate nonlinear decision boundaries
-- Reduce manual interaction engineering
-- Measure performance gains relative to linear models
-
-Several experiments explored:
-
-- Maximum tree depth
-- Number of estimators
-- Minimum samples per split
-- Feature subsampling
-- Random seed stability
-
-Random Forest consistently improved predictive performance over both Logistic Regression and Naive Bayes while requiring substantially less manual feature engineering.
-
-However, improvements eventually plateaued, motivating investigation of gradient boosting methods.
-
----
-
-# Stage 4 — XGBoost
-
-Gradient Boosted Decision Trees became the final modeling approach.
-
-XGBoost combines sequential boosting, regularization, and efficient tree construction to produce state-of-the-art performance on structured tabular datasets.
-
-Compared with previous models, XGBoost offered:
-
-- Better nonlinear representation
-- Automatic interaction discovery
-- Built-in regularization
-- Improved calibration
-- Stronger generalization
-
-Multiple rounds of experimentation optimized:
-
-- Learning rate
-- Maximum tree depth
-- Number of estimators
-- Column sampling
-- Row sampling
-- Minimum child weight
-- Regularization parameters
-
-Throughout experimentation, XGBoost consistently achieved the lowest validation log loss while maintaining stable generalization performance across temporal folds.
-
-These experiments ultimately established XGBoost as the production model selected for final evaluation.
-
----
-
-# Experiment Tracking
-
-Every experiment performed throughout development was automatically recorded.
-
-For each training run, the pipeline logged:
-
-- Model family
-- Hyperparameters
-- Cross-validation metrics
-- Fold statistics
-- Training time
-- Final validation performance
-
-The resulting experiment summaries enabled direct comparison across Logistic Regression, Naive Bayes, Random Forest, and XGBoost while preserving complete reproducibility.
-
-This experiment tracking framework also simplified later visualization within the Tableau dashboards.
-
----
-
-# Lessons Learned During Model Development
-
-Several consistent patterns emerged throughout experimentation.
-
-### Feature Engineering
-
-- Spatial information was among the strongest predictive signals.
-- Temporal cyclicality improved every model family.
-- Interaction features benefited linear models more than tree-based methods.
-
-### Model Complexity
-
-- Logistic Regression provided strong interpretability.
-- Random Forest reduced the need for handcrafted interactions.
-- XGBoost consistently delivered the strongest predictive performance.
-
-### Engineering Decisions
-
-The progression from linear models to gradient boosting was driven by empirical evidence rather than preference.
-
-Each successive model was only adopted after demonstrating measurable improvements under identical temporal validation procedures.
-
-This iterative experimentation process ultimately produced a robust, reproducible machine learning pipeline suitable for final evaluation.
-
-# Project Evolution and Roadmap
-
-This repository is being developed through a series of increasingly production-oriented versions.
-
-Each version preserves the work completed in the previous stage while introducing a new layer of data science, software engineering, or machine learning capability.
-
-The purpose of this versioned approach is to document the progression from an academic machine learning notebook into a deployable and maintainable machine learning system.
-
----
-
-## Version 1 — Academic Machine Learning Project
-
-Version 1 established the original analytical and modeling foundation of the project.
-
-The workflow was primarily notebook-based and focused on exploratory analysis, manual feature engineering, and comparison of interpretable probabilistic classification models.
-
-### Version 1 components
-
-- Jupyter Notebook workflow
-- Exploratory data analysis
-- Temporal trend visualization
-- Geographic crime analysis
-- Feature engineering
-- Geographic clustering
-- Logistic Regression
-- Naive Bayes
-- Hyperparameter sweeps
-- Hold-out model evaluation
-- Static figures and written report
-
-### Version 1 final result
-
-The optimized Logistic Regression model outperformed Naive Bayes and demonstrated that temporal, district, address, and geographic information could provide meaningful predictive signal.
-
-Version 1 remains available in the repository's dedicated `version-1` branch.
-
----
-
-## Version 2 — Modular Data Science and Experimentation Pipeline
-
-Version 2 is the current release.
-
-This version preserves the original analysis while restructuring the project into a modular, reproducible machine learning workflow.
-
-The main goal of Version 2 was to move beyond a single notebook and introduce the engineering practices required for systematic experimentation and repeatable model development.
-
-### Version 2 components
-
-- Modular Python source code
-- Configuration-driven experiments
-- DuckDB analytical database
-- Reusable SQL queries and views
-- Structured data and artifact directories
-- Automated experiment tracking
-- Temporal cross-validation
-- Frozen temporal test set
-- Logistic Regression experiments
-- Naive Bayes benchmarks
-- Random Forest experiments
-- XGBoost optimization
-- Final model serialization
-- Model metadata generation
-- Calibration and reliability analysis
-- Per-class model evaluation
-- SHAP explainability
-- Tableau dashboards
-- Reorganized figures and reports
-- Reproducible environment configuration
-
-### Version 2 modeling progression
-
-```text
-Original Notebook Models
-        ↓
-Modular Preprocessing
-        ↓
-SQL and DuckDB Integration
-        ↓
-Temporal Cross-Validation
-        ↓
-Automated Experiment Tracking
-        ↓
-Random Forest Benchmarking
-        ↓
-XGBoost Optimization
-        ↓
-Frozen Test Evaluation
-        ↓
-Explainability and Dashboards
-```
-
-### Version 2 final result
-
-The final XGBoost classifier was selected because it produced the strongest balance of:
-
-- Validation log loss
-- Frozen test performance
-- Predictive accuracy
-- Top-k classification performance
-- Calibration
-- Generalization across temporal folds
-- Training efficiency relative to performance
-- Compatibility with SHAP-based explainability
-
-Version 2 establishes the data science and experimentation foundation required for future deployment work.
-
----
-
-## Version 3 — API, Testing, Containerization, and Cloud Deployment
-
-Version 3 will transform the trained model into a deployable inference service.
-
-The primary focus will shift from experimentation toward production-oriented software engineering.
-
-### Planned Version 3 components
-
-#### FastAPI inference service
-
-- Build a REST API around the final prediction pipeline
-- Create a `/predict` endpoint
-- Validate incoming data with request schemas
-- Return predicted crime probabilities
-- Include top predicted categories
-- Add model and service health endpoints
-
-#### Docker containerization
-
-- Package the API and dependencies inside a Docker image
-- Standardize local and cloud execution
-- Eliminate environment-specific inconsistencies
-- Document image building and container execution
-
-#### Unit and integration testing
-
-- Test feature transformations
-- Test input validation
-- Test model artifact loading
-- Test prediction response structure
-- Test API endpoints
-- Test failure cases and malformed requests
-
-#### Structured logging
-
-- Replace development print statements with application logging
-- Record model loading events
-- Record prediction requests
-- Record errors and validation failures
-- Support separate development and production logging levels
-
-#### Configuration and environment management
-
-- Separate local and deployment configuration
-- Introduce environment variables where appropriate
-- Avoid hard-coded file paths
-- Improve model and artifact path management
-
-#### AWS deployment
-
-- Deploy the Dockerized FastAPI application to AWS
-- Initially target an EC2-based deployment
-- Expose a remotely accessible prediction endpoint
-- Document instance configuration and deployment commands
-- Record cloud deployment screenshots and validation results
-
-### Planned Version 3 workflow
-
-```text
-Saved Version 2 Model
-        ↓
-FastAPI Prediction Service
-        ↓
-Unit and Integration Tests
-        ↓
-Docker Image
-        ↓
-Local Container Validation
-        ↓
-AWS Deployment
-        ↓
-Remote Prediction Endpoint
-```
-
-Version 3 will demonstrate that the model can operate outside the development environment as a reproducible inference service.
-
----
-
-## Version 4 — PostgreSQL, PyTorch, and Advanced Machine Learning
-
-Version 4 will expand both the data infrastructure and modeling capabilities of the project.
-
-The main objective will be to explore advanced neural-network approaches while replacing the local analytical database with a more production-oriented relational system.
-
-### Planned Version 4 components
-
-#### PostgreSQL data layer
-
-- Replace or supplement DuckDB with PostgreSQL
-- Create persistent relational tables
-- Develop reusable SQL feature queries
-- Practice database indexing and query optimization
-- Separate analytical storage from application logic
-- Support future API and model-monitoring workflows
-
-DuckDB will remain useful for lightweight local analytics, while PostgreSQL will provide experience with a persistent client-server database architecture.
-
-#### PyTorch classification models
-
-Potential neural-network experiments include:
-
-- Fully connected multiclass classifiers
-- Embedding layers for categorical variables
-- Learned representations for districts and addresses
-- Regularization and dropout
-- Batch normalization
-- Learning-rate scheduling
-- Early stopping
-- Class-weighted training
-- Hyperparameter and architecture comparisons
-
-#### Hybrid neural-network feature extraction
-
-One planned experiment will combine neural networks with traditional classifiers.
-
-The proposed workflow is:
-
-1. Train a PyTorch neural network.
-2. Extract activations from the final hidden layer.
-3. Treat the learned representation as a new engineered feature space.
-4. Train Logistic Regression, softmax regression, or another classifier on those features.
-5. Compare the hybrid pipeline against pure neural-network and XGBoost models.
-
-This approach will test whether a neural network can automatically learn nonlinear interactions that improve a simpler downstream classifier.
-
-#### Advanced experiment management
-
-Version 4 may expand the current experiment-tracking system to include:
-
-- Centralized experiment metadata
-- Model artifact versioning
-- Training-history storage
-- Neural-network learning curves
-- Reproducible random seeds
-- Architecture comparison tables
-- Automated model-selection summaries
-
-#### Model monitoring
-
-Potential monitoring additions include:
-
-- Prediction confidence tracking
-- Class-distribution monitoring
-- Feature-distribution drift
-- API error monitoring
-- Inference latency measurement
-- Model version tracking
-
-#### Continuous integration and deployment
-
-Potential engineering improvements include:
-
-- Automated test execution
-- Code-quality checks
-- Docker build validation
-- GitHub Actions workflows
-- Automated deployment validation
-- Release tagging and version documentation
-
-### Planned Version 4 workflow
-
-```text
-PostgreSQL Data Layer
-        ↓
-Reusable SQL Feature Pipeline
-        ↓
-PyTorch Model Development
-        ↓
-Neural Representation Learning
-        ↓
-Hybrid Model Experiments
-        ↓
-Model Monitoring
-        ↓
-CI/CD and Deployment Improvements
-```
-
----
-
-# Long-Term Project Direction
-
-The long-term goal is to evolve this repository across four clear stages:
-
-| Version | Primary Focus | Main Outcome |
-|---|---|---|
-| Version 1 | Academic modeling | Notebook-based crime classification |
-| Version 2 | Data science engineering | Modular experimentation and final XGBoost model |
-| Version 3 | Production deployment | Tested FastAPI service deployed with Docker and AWS |
-| Version 4 | Advanced ML engineering | PostgreSQL, PyTorch, monitoring, and improved deployment workflows |
-
-This roadmap allows each new version to build on the previous implementation instead of replacing it.
-
-The repository therefore documents not only the final model, but also the development process required to move from exploratory data science toward machine learning engineering.
-
----
-
-# Technologies Used
-
-## Programming Languages
-
-- Python
-- SQL
+# Technology Stack
 
 ## Machine Learning
 
-- Scikit-learn
+- Python
+- pandas
+- NumPy
+- scikit-learn
 - XGBoost
 - SHAP
 
-## Data Engineering
+## Data
 
 - DuckDB
-- Pandas
-- NumPy
+- SQL
 
-## Data Visualization
+## Visualization
 
 - Matplotlib
+- Seaborn
 - Tableau
 
-## Development Tools
+## API / Backend
 
-- Jupyter Notebook
-- VS Code
+- FastAPI
+- Pydantic
+- Uvicorn
+
+## Testing
+
+- pytest
+
+## Infrastructure
+
+- Docker
+- Amazon EC2
+- Amazon ECR
+- AWS Systems Manager
+- Nginx
+- HTTPS
+
+## CI/CD
+
 - Git
 - GitHub
+- GitHub Actions
+
+---
+
+# Engineering Lessons
+
+This project reinforced several principles that extend beyond the specific crime-classification problem.
+
+## 1. Better Features Are an Empirical Question
+
+More sophisticated feature engineering does not automatically produce a better model.
+
+Geographic encodings, cyclical features, interactions, and other transformations should be evaluated experimentally rather than retained because they appear theoretically useful.
+
+---
+
+## 2. Validation Design Matters as Much as Model Choice
+
+For temporally ordered data, random validation can produce misleading estimates of future performance.
+
+Temporal validation better represents the way the model would encounter new incidents over time.
+
+---
+
+## 3. The Test Set Is Not a Tuning Tool
+
+Repeatedly evaluating candidate models against the final test set effectively turns the test set into another validation set.
+
+The final evaluation data was therefore frozen while feature engineering and hyperparameter selection were performed using validation data.
+
+---
+
+## 4. Training and Inference Must Share the Same Contract
+
+A model is only useful in production if incoming requests are transformed exactly as expected by the trained artifact.
+
+Version 3 therefore reuses the established feature and inference pipeline rather than recreating preprocessing inside API routes.
+
+---
+
+## 5. A Running Process Is Not Necessarily a Healthy Service
+
+Separating liveness from readiness prevents infrastructure from treating an application as production-ready simply because its process exists.
+
+Model availability and supporting dependencies must also be verified.
+
+---
+
+## 6. Deployment Should Be Verifiable
+
+A successful deployment command does not prove that the intended model is serving traffic.
+
+The pipeline therefore checks:
+
+- Container state
+- Readiness
+- Image identity
+- Internal service behavior
+- Public HTTPS behavior
+
+---
+
+## 7. Immutable Artifacts Improve Reproducibility
+
+Immutable image identifiers make it possible to connect a production deployment to a specific build rather than an ambiguous mutable tag.
+
+This provides a stronger foundation for rollback and deployment auditing.
+
+---
+
+## 8. ML Engineering Extends Beyond Model Accuracy
+
+The transition from Version 1 to Version 3 demonstrates the difference between:
+
+```text
+A model that produces predictions
+```
+
+and:
+
+```text
+A tested and reproducible system that can reliably serve predictions
+```
+
+Production ML requires consideration of:
+
+- Data contracts
+- Artifact contracts
+- Validation
+- Testing
+- APIs
+- Logging
+- Monitoring
+- Containers
+- Infrastructure
+- Security
+- Deployment
+- Reproducibility
+
+in addition to model selection.
+
+---
+
+# Version 4 Roadmap
+
+Version 4 is planned to extend the project in two major directions: **production data infrastructure** and **deep learning**.
+
+## PostgreSQL
+
+DuckDB is highly effective for local analytical workflows, but Version 4 will introduce PostgreSQL to explore a persistent client/server database architecture.
+
+Planned work includes:
+
+- PostgreSQL schema design
+- Database migrations
+- Application database connections
+- Persistent prediction records
+- Experiment metadata persistence
+- Production-oriented SQL workflows
+- Integration between the inference service and relational storage
+
+This will provide experience moving from an embedded analytical database toward a traditional production database architecture.
+
+---
+
+## PyTorch
+
+Version 4 will also introduce neural-network modeling using PyTorch.
+
+Planned experiments include:
+
+- Multiclass neural network classifier
+- Softmax probability outputs
+- Neural-network hyperparameter experiments
+- Comparison against XGBoost
+- Calibration comparison
+- Deep feature representations
+- Potential use of final hidden-layer representations as inputs to simpler downstream classifiers
+
+The objective is not to replace XGBoost simply because a neural network is more complex.
+
+Instead, the PyTorch model will be evaluated using the same experimental principles established in Version 2:
+
+> A more complex model should only replace the existing production model if empirical evidence justifies the additional complexity.
+
+---
+
+## Longer-Term Production Extensions
+
+Potential future extensions include:
+
+- PostgreSQL-backed prediction auditing
+- Model monitoring
+- Drift detection
+- Performance dashboards
+- Automated retraining workflows
+- Model registry integration
+- Infrastructure as Code
+- Cloud-native deployment alternatives
+- Production observability
+- Automated rollback strategies
 
 ---
 
 # Author
 
-## Alec Olvera
+**Alec Olvera**
 
 B.S. Applied and Computational Mathematics  
-University of Southern California (USC)
+University of Southern California
 
-This repository documents my progression from an academic machine learning project toward production-oriented machine learning engineering. Each version expands upon the previous implementation by introducing more advanced data engineering, software engineering, and deployment practices while preserving reproducibility and transparency throughout the development process.
+M.A.S. Data Science & Engineering  
+University of California, San Diego
 
-My interests include:
+Interests:
 
 - Machine Learning Engineering
-- Applied Machine Learning
 - Data Science
-- MLOps
-- Software Engineering
-- Data Engineering
-- Predictive Modeling
-- Optimization
-
-### GitHub
-
-https://github.com/olveraalec
-
----
-
-## Acknowledgments
-
-This project was originally developed using the **San Francisco Crime Classification** dataset provided through Kaggle.
-
-Special thanks to the open-source Python ecosystem, including the developers and maintainers of:
-
-- Scikit-learn
-- XGBoost
-- DuckDB
-- Pandas
-- NumPy
-- Matplotlib
-- SHAP
-- Tableau Public
-
-whose tools made this project possible.
-
----
-
-## License
-
-This project is released under the MIT License.
-
-See the `LICENSE` file for additional details.
+- Applied Mathematics
+- ML Infrastructure
+- Production Machine Learning
+- Statistical Modeling
